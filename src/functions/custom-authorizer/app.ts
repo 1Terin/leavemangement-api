@@ -1,32 +1,55 @@
-import { APIGatewayRequestAuthorizerEvent, Context, APIGatewayAuthorizerResult } from 'aws-lambda';
-import { verifyToken, generatePolicy, JWTClaims } from '../../util/jwt'; // Adjust path as needed
+// src/functions/custom-authorizer/app.ts (Full code with enhanced logging)
+import { Context, APIGatewayAuthorizerResult } from 'aws-lambda';
+import { verifyToken, generatePolicy, JWTClaims } from '../../util/jwt';
 
-export const handler = async (event: APIGatewayRequestAuthorizerEvent, context: Context): Promise<APIGatewayAuthorizerResult> => {
-  const token = event.headers?.Authorization?.split(' ')[1]; // Expecting "Bearer <token>"
+interface TokenAuthorizerEvent {
+  type: 'TOKEN';
+  authorizationToken: string;
+  methodArn: string;
+}
+
+export const handler = async (event: TokenAuthorizerEvent, context: Context): Promise<APIGatewayAuthorizerResult> => {
+  console.log("Incoming event:", JSON.stringify(event, null, 2));
+
+  // Attempt to extract token
+  const token = event.authorizationToken?.split(' ')[1];
+  console.log("Extracted token status:", token ? "Token present and extracted" : "Token missing or malformed");
 
   if (!token) {
-    console.warn("Authorization token not provided.");
-    throw new Error('Unauthorized'); // Return 401 Unauthorized
+    console.warn("Authorization token not provided or malformed in event.authorizationToken.");
+    throw new Error('Unauthorized');
   }
 
-  const decoded = verifyToken(token);
+  try {
+    console.log("Attempting to verify token using verifyToken function...");
+    const decoded = verifyToken(token); // This is where the issue might be happening if no more logs appear
+    console.log("Token verification result:", decoded ? "Token successfully decoded." : "Token verification failed (decoded is null/undefined).");
 
-  if (!decoded) {
-    console.warn("Invalid or expired token.");
-    throw new Error('Unauthorized'); // Return 401 Unauthorized
+    if (!decoded) {
+      console.warn("Invalid or expired token, or verification failed.");
+      throw new Error('Unauthorized');
+    }
+
+    const claims = decoded as JWTClaims;
+    console.log("Claims extracted:", JSON.stringify(claims));
+
+    const principalId = claims.userId;
+    const effect = 'Allow';
+    const resource = event.methodArn;
+
+    const authContext = {
+      userId: claims.userId,
+      email: claims.email,
+      role: claims.role
+    };
+
+    console.log("Attempting to generate policy using generatePolicy function...");
+    const policy = generatePolicy(principalId, effect, resource, authContext);
+    console.log("Generated policy:", JSON.stringify(policy));
+
+    return policy;
+  } catch (error: any) {
+    console.error("Error during token processing or policy generation:", error.message, error.stack);
+    throw new Error('Unauthorized');
   }
-
-  const claims = decoded as JWTClaims;
-
-  const principalId = claims.userId;
-  const effect = 'Allow'; // or 'Deny' based on claims
-  const resource = event.methodArn; // The ARN of the resource being accessed
-
-  const authContext = {
-    userId: claims.userId,
-    email: claims.email,
-    role: claims.role
-  };
-
-  return generatePolicy(principalId, effect, resource, authContext);
 };
