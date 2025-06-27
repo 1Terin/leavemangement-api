@@ -64,6 +64,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     status: 'Pending',
     createdAt,
     updatedAt: createdAt,
+    userEmail: authContext.email, // Pass user's email for notification
   };
 
   try {
