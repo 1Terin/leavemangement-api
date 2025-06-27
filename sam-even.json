@@ -1,0 +1,16 @@
+{
+  "ApplyLeaveFunction": {
+    "LEAVE_REQUESTS_TABLE_NAME": "LeaveRequests",
+    "STEP_FUNCTION_ARN": "arn:aws:states:ap-south-1:123456789012:stateMachine:LeaveApprovalStateMachine"
+  },
+  "ProcessApprovalFunction": {
+    "LEAVE_REQUESTS_TABLE_NAME": "LeaveRequests"
+  },
+  "SendNotificationFunction": {
+    "SENDER_EMAIL": "your-verified-ses-email@example.com",
+    "API_GATEWAY_DOMAIN": "localhost:3000"
+  },
+  "CustomAuthorizerLambda": {
+    "JWT_SECRET": "your-super-secret-jwt-key"
+  }
+}

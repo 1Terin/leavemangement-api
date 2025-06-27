@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./build", // Output directory for compiled JS
+    "rootDir": "./src", // Root of your TypeScript source files
+    "noEmit": false, // Allow emitting output files
+    "sourceMap": true, // Generate source maps for debugging
+    "types": ["node", "jest","aws-sdk-client-mock-jest"],
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts"
+  ]
+}

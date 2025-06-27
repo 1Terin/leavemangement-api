@@ -1,0 +1,104 @@
+{
+  "Comment": "A workflow for managing leave approval requests.",
+  "StartAt": "SendApprovalRequest",
+  "States": {
+    "SendApprovalRequest": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${SendApprovalEmailLambdaArn}",
+        "Payload": {
+          "recipientEmail.$": "$.approverId",
+          "subject": "New Leave Request for Your Approval - Request ID: $.requestId",
+          "bodyHtml": "A new leave request has been submitted by <strong>$.userId</strong> for <strong>$.leaveDetails.leaveType</strong> from <strong>$.leaveDetails.startDate</strong> to <strong>$.leaveDetails.endDate</strong>. Reason: <em>$.leaveDetails.reason</em>",
+          "bodyText": "A new leave request has been submitted by $.userId for $.leaveDetails.leaveType from $.leaveDetails.startDate to $.leaveDetails.endDate. Reason: $.leaveDetails.reason",
+          "taskToken.$": "$$.Task.Token",
+          "requestId.$": "$.requestId",
+          "actionType": "APPROVER_REQUEST"
+        }
+      },
+      "ResultPath": "$.approvalResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.Timeout"],
+          "Next": "HandleApprovalTimeout"
+        }
+      ],
+      "Next": "ProcessApprovalResult"
+    },
+    "ProcessApprovalResult": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.approvalResult.status",
+          "StringEquals": "Approved",
+          "Next": "NotifyUserApproved"
+        },
+        {
+          "Variable": "$.approvalResult.status",
+          "StringEquals": "Rejected",
+          "Next": "NotifyUserRejected"
+        }
+      ],
+      "Default": "HandleUnexpectedApprovalStatus"
+    },
+    "NotifyUserApproved": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SendUserApprovalNotificationLambdaArn}",
+        "Payload": {
+          "recipientEmail.$": "$.userEmail",
+          "subject": "Your Leave Request Approved - Request ID: $.requestId",
+          "bodyHtml": "<p>Good news! Your leave request (ID: <strong>$.requestId</strong>) for <strong>$.leaveDetails.leaveType</strong> from <strong>$.leaveDetails.startDate</strong> to <strong>$.leaveDetails.endDate</strong> has been <strong>APPROVED</strong>.</p>",
+          "bodyText": "Good news! Your leave request (ID: $.requestId) for $.leaveDetails.leaveType from $.leaveDetails.startDate to $.leaveDetails.endDate has been APPROVED.",
+          "actionType": "USER_APPROVAL"
+        }
+      },
+      "End": true
+    },
+    "NotifyUserRejected": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SendUserRejectionNotificationLambdaArn}",
+        "Payload": {
+          "recipientEmail.$": "$.userEmail",
+          "subject": "Your Leave Request Rejected - Request ID: $.requestId",
+          "bodyHtml": "<p>Important: Your leave request (ID: <strong>$.requestId</strong>) for <strong>$.leaveDetails.leaveType</strong> from <strong>$.leaveDetails.startDate</strong> to <strong>$.leaveDetails.endDate</strong> has been <strong>REJECTED</strong>.</p><p>Please contact your approver for more details.</p>",
+          "bodyText": "Important: Your leave request (ID: $.requestId) for $.leaveDetails.leaveType from $.leaveDetails.startDate to $.leaveDetails.endDate has been REJECTED. Please contact your approver for more details.",
+          "actionType": "USER_REJECTION"
+        }
+      },
+      "End": true
+    },
+    "HandleApprovalTimeout": {
+      "Type": "Pass",
+      "Result": {
+        "status": "TimedOut",
+        "message": "Leave request approval timed out."
+      },
+      "Next": "NotifyUserTimeout"
+    },
+    "NotifyUserTimeout": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SendUserRejectionNotificationLambdaArn}",
+        "Payload": {
+          "recipientEmail.$": "$.userEmail",
+          "subject": "Leave Request Expired - Request ID: $.requestId",
+          "bodyHtml": "<p>Your leave request (ID: <strong>$.requestId</strong>) has expired without a response from the approver. Please create a new request or contact your approver.</p>",
+          "bodyText": "Your leave request (ID: $.requestId) has expired without a response from the approver. Please create a new request or contact your approver.",
+          "actionType": "USER_REJECTION"
+        }
+      },
+      "End": true
+    },
+    "HandleUnexpectedApprovalStatus": {
+      "Type": "Fail",
+      "Cause": "Unexpected approval status received.",
+      "Error": "UnexpectedStatus"
+    }
+  }
+}

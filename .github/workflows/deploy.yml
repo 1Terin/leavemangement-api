@@ -1,0 +1,55 @@
+name: Deploy to AWS SAM
+
+on:
+  push:
+    branches:
+      - main # Deploy on pushes to the main branch
+
+env:
+  AWS_REGION: ap-south-1 # Your desired AWS region (e.g., us-east-1, ap-south-1)
+  SAM_STACK_NAME: LeaveManagementStack
+  SENDER_EMAIL: your-verified-ses-email@example.com # Must be verified in SES
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC authentication to AWS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SAM CLI
+        run: |
+          pip install aws-sam-cli
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/LeaveManagementApiGitHubActionsDeployRole # Create this IAM role in AWS
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install project dependencies
+        run: npm ci # Use npm ci for clean installs in CI
+
+      - name: Build SAM application
+        run: sam build --use-container # Use --use-container if your functions have native dependencies
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Deploy SAM application
+        run: |
+          sam deploy \
+            --stack-name ${{ env.SAM_STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --no-confirm-changeset \
+            --parameter-overrides SenderEmailAddress=${{ env.SENDER_EMAIL }}

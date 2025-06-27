@@ -1,0 +1,280 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Leave Management API with Step Functions and TypeScript
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 256
+    Timeout: 30
+    Architectures:
+      - x86_64
+    Tracing: Active
+    Environment:
+      Variables:
+        NODE_OPTIONS: --enable-source-maps
+
+Parameters:
+  LeaveRequestsTableNameParam:
+    Type: String
+    Description: Name of the DynamoDB table for leave requests.
+    Default: LeaveRequestsTableProd
+
+  ExternalDependencies:
+    Type: String
+    Description: Space-separated list of dependencies to mark as external during esbuild bundling
+    Default: "@aws-sdk/* jsonwebtoken uuid"
+
+Resources:
+  LeaveRequestsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref LeaveRequestsTableNameParam
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: requestId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: requestId
+          KeyType: HASH
+
+  CustomAuthorizerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.handler
+      Policies: []
+      Environment:
+        Variables:
+          JWT_SECRET: your-super-secret-jwt-key
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        External: !Split [" ", !Ref ExternalDependencies]
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/custom-authorizer/app.ts
+
+  LeaveManagementApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: CustomJwtAuthorizer
+        Authorizers:
+          CustomJwtAuthorizer:
+            FunctionPayloadType: TOKEN
+            FunctionArn: !GetAtt CustomAuthorizerLambda.Arn
+            Identity:
+              Headers:
+                - Authorization
+    DependsOn:
+      - CustomAuthorizerLambda # Ensure authorizer Lambda is created before API Gateway configures it
+
+  # Explicit Permissions for API Gateway to invoke Lambdas
+  CustomAuthorizerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CustomAuthorizerLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
+    DependsOn:
+      - LeaveManagementApi # Permission depends on both Lambda and API Gateway
+
+  ApplyLeaveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveRequestsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:StartExecution
+            Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
+      Environment:
+        Variables:
+          LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
+      Events:
+        ApplyLeaveApi:
+          Type: Api
+          Properties:
+            Path: /leaves
+            Method: post
+            RestApiId: !Ref LeaveManagementApi
+            Auth:
+              Authorizer: CustomJwtAuthorizer
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        External: !Split [" ", !Ref ExternalDependencies]
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/apply-leave/app.ts
+
+  ApplyLeaveFunctionApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ApplyLeaveFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
+    DependsOn:
+      - LeaveManagementApi # Permission depends on both Lambda and API Gateway
+
+  ProcessApprovalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveRequestsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:StartExecution
+              - states:DescribeExecution
+              - states:StopExecution
+            Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
+      Environment:
+        Variables:
+          LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
+      Events:
+        ApproveLeaveApi:
+          Type: Api
+          Properties:
+            Path: /leaves/{requestId}/approve
+            Method: get
+            RestApiId: !Ref LeaveManagementApi
+            Auth:
+              Authorizer: NONE
+        RejectLeaveApi:
+          Type: Api
+          Properties:
+            Path: /leaves/{requestId}/reject
+            Method: get
+            RestApiId: !Ref LeaveManagementApi
+            Auth:
+              Authorizer: NONE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        External: !Split [" ", !Ref ExternalDependencies]
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/process-approval/app.ts
+
+  ProcessApprovalFunctionApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ProcessApprovalFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
+    DependsOn:
+      - LeaveManagementApi # Permission depends on both Lambda and API Gateway
+
+  SendNotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: '*'
+      Environment:
+        Variables:
+          SENDER_EMAIL: test@example.com
+          API_GATEWAY_DOMAIN: !Sub '${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        External: !Split [" ", !Ref ExternalDependencies]
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/send-notification/app.ts
+
+  LeaveApprovalStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionSubstitutions:
+        CreateLeaveRequestLambdaArn: !GetAtt ApplyLeaveFunction.Arn
+        SendApprovalEmailLambdaArn: !GetAtt SendNotificationFunction.Arn
+        ProcessApprovalLambdaArn: !GetAtt ProcessApprovalFunction.Arn
+        SendUserApprovalNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
+        SendUserRejectionNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
+      DefinitionUri: statemachine/leave_approval_workflow.asl.json
+      Role: !GetAtt StepFunctionsExecutionRole.Arn
+
+  StepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsLambdaInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt SendNotificationFunction.Arn
+                  - !GetAtt ApplyLeaveFunction.Arn 
+                  - !GetAtt ProcessApprovalFunction.Arn 
+        - PolicyName: StepFunctionsDDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:PutItem
+                Resource: !GetAtt LeaveRequestsTable.Arn
+        - PolicyName: StepFunctionsTaskTokenPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
+
+
+Outputs:
+  LeaveManagementApiUrl:
+    Description: "API Gateway endpoint URL for Leave Management API"
+    Value: !Sub "https://${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  LeaveApprovalStateMachineArn:
+    Description: "Leave Approval Step Functions State Machine ARN"
+    Value: !Ref LeaveApprovalStateMachine
+  LeaveRequestsTableName:
+    Description: "DynamoDB Table Name for Leave Requests"
+    Value: !Ref LeaveRequestsTable
