@@ -198,7 +198,7 @@ Resources:
             Resource: '*'
       Environment:
         Variables:
-          SENDER_EMAIL: test@example.com
+          SENDER_EMAIL: terinchris2005@gmail.com
           API_GATEWAY_DOMAIN: !Sub '${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com'
     Metadata:
       BuildMethod: esbuild
