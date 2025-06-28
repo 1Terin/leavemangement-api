@@ -13,17 +13,20 @@ const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 const STEP_FUNCTION_ARN = process.env.STEP_FUNCTION_ARN;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+  console.log("EVENT RECEIVED:", JSON.stringify(event, null, 2));
+
   if (!LEAVE_REQUESTS_TABLE || !STEP_FUNCTION_ARN) {
-    console.error("Environment variables not set: LEAVE_REQUESTS_TABLE_NAME or STEP_FUNCTION_ARN");
+    console.error("Missing env vars");
     return {
       statusCode: 500,
       body: JSON.stringify({ message: "Configuration error." }),
     };
   }
 
-  const authContext = event.requestContext.authorizer?.lambda; // Data from custom authorizer
+  const authContext = event.requestContext?.authorizer?.lambda;
 
   if (!authContext || !authContext.userId) {
+    console.error("Missing authorizer context:", event.requestContext?.authorizer);
     return {
       statusCode: 401,
       body: JSON.stringify({ message: "Unauthorized: User context missing." }),
@@ -45,7 +48,9 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   if (!leaveType || !startDate || !endDate || !reason || !approverId) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ message: "Missing required fields: leaveType, startDate, endDate, reason, approverId." }),
+      body: JSON.stringify({
+        message: "Missing required fields: leaveType, startDate, endDate, reason, approverId.",
+      }),
     };
   }
 
@@ -56,7 +61,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   const newLeaveRequest: LeaveRequest = {
     requestId,
     userId,
-    approverId, // In a real system, fetch approver based on userId or organization structure
+    approverId,
     leaveType,
     startDate,
     endDate,
@@ -64,54 +69,57 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     status: 'Pending',
     createdAt,
     updatedAt: createdAt,
-    userEmail: authContext.email, // Pass user's email for notification
+    userEmail: authContext.email,
   };
 
   try {
-    // 1. Save leave request to DynamoDB
+    // Save to DynamoDB
     const putCommand = new PutCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Item: newLeaveRequest,
     });
     await ddbDocClient.send(putCommand);
-    console.log("Leave request saved to DDB:", newLeaveRequest);
+    console.log("Leave request saved:", newLeaveRequest);
 
-    // 2. Start Step Function execution
+    // Start Step Function
     const sfnInput = {
-      requestId: newLeaveRequest.requestId,
-      userId: newLeaveRequest.userId,
-      approverId: newLeaveRequest.approverId,
+      requestId,
+      userId,
+      approverId,
       leaveDetails: {
-        leaveType: newLeaveRequest.leaveType,
-        startDate: newLeaveRequest.startDate,
-        endDate: newLeaveRequest.endDate,
-        reason: newLeaveRequest.reason,
+        leaveType,
+        startDate,
+        endDate,
+        reason,
       },
-      userEmail: authContext.email, // Pass user's email for notification
+      userEmail: authContext.email,
     };
 
     const startExecutionCommand = new StartExecutionCommand({
       stateMachineArn: STEP_FUNCTION_ARN,
       input: JSON.stringify(sfnInput),
-      name: `leave-request-${requestId}-${Date.now()}`, // Unique name for execution
+      name: `leave-request-${requestId}-${Date.now()}`,
     });
 
     const sfnResponse = await sfnClient.send(startExecutionCommand);
-    console.log("Step Function execution started:", sfnResponse.executionArn);
+    console.log("Step Function started:", sfnResponse.executionArn);
 
     return {
       statusCode: 202,
       body: JSON.stringify({
         message: "Leave request submitted for approval.",
-        requestId: requestId,
+        requestId,
         status: newLeaveRequest.status,
       }),
     };
   } catch (error) {
-    console.error("Error processing leave request:", error);
+    console.error("Processing error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: "Failed to submit leave request.", error: (error as Error).message }),
+      body: JSON.stringify({
+        message: "Failed to submit leave request.",
+        error: (error as Error).message,
+      }),
     };
   }
 };

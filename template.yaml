@@ -20,13 +20,19 @@ Parameters:
     Description: Name of the DynamoDB table for leave requests.
     Default: LeaveRequestsTableProd
 
-  # MODIFIED: Removed jsonwebtoken and uuid from ExternalDependencies
   ExternalDependencies:
     Type: String
     Description: Space-separated list of dependencies to mark as external during esbuild bundling
-    Default: "@aws-sdk/*" # <-- ONLY @aws-sdk/* IS EXTERNAL NOW
+    Default: "@aws-sdk/*"
 
 Resources:
+
+  LeaveManagementApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionUri: swagger.yaml
+
   LeaveRequestsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -35,19 +41,20 @@ Resources:
       AttributeDefinitions:
         - AttributeName: requestId
           AttributeType: S
-      KeySchema: # Make sure this line and the following two lines are present and correctly indented
+      KeySchema:
         - AttributeName: requestId
           KeyType: HASH
 
   CustomAuthorizerLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: . # Keep as . as package.json is in root
-      Handler: src/functions/custom-authorizer/app.handler # <-- IMPORTANT: Update Handler to full path
+      FunctionName: !Sub "${AWS::StackName}-CustomAuthorizerLambda"
+      CodeUri: .
+      Handler: src/functions/custom-authorizer/app.handler
       Policies: []
       Environment:
         Variables:
-          JWT_SECRET: your-super-secret-jwt-key # REMINDER: Use a strong, secure secret here
+          JWT_SECRET: your-super-secret-jwt-key
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -58,38 +65,12 @@ Resources:
         EntryPoints:
           - src/functions/custom-authorizer/app.ts
 
-  LeaveManagementApi:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: prod
-      Auth:
-        DefaultAuthorizer: CustomJwtAuthorizer
-        Authorizers:
-          CustomJwtAuthorizer:
-            FunctionPayloadType: TOKEN
-            FunctionArn: !GetAtt CustomAuthorizerLambda.Arn
-            Identity:
-              Headers:
-                - Authorization
-    DependsOn:
-      - CustomAuthorizerLambda
-
-  # Explicit Permissions for API Gateway to invoke Lambdas
-  CustomAuthorizerLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt CustomAuthorizerLambda.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
-    DependsOn:
-      - LeaveManagementApi
-
   ApplyLeaveFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: . # Keep as . as package.json is in root
-      Handler: src/functions/apply-leave/app.handler # <-- IMPORTANT: Update Handler to full path
+      FunctionName: !Sub "${AWS::StackName}-ApplyLeaveFunction"
+      CodeUri: .
+      Handler: src/functions/apply-leave/app.handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref LeaveRequestsTable
@@ -101,17 +82,7 @@ Resources:
       Environment:
         Variables:
           LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
-      Events:
-        ApplyLeaveApi:
-          Type: Api
-          Properties:
-            Path: /leaves
-            Method: post
-            RestApiId: !Ref LeaveManagementApi
-            Auth:
-              Authorizer: CustomJwtAuthorizer
-            RequestParameters:
-              method.request.header.Authorization: true
+          STEP_FUNCTION_ARN: !Ref LeaveApprovalStateMachine
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -122,51 +93,25 @@ Resources:
         EntryPoints:
           - src/functions/apply-leave/app.ts
 
-  ApplyLeaveFunctionApiPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt ApplyLeaveFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
-    DependsOn:
-      - LeaveManagementApi
-
   ProcessApprovalFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: . # Keep as . as package.json is in root
-      Handler: src/functions/process-approval/app.handler # <-- IMPORTANT: Update Handler to full path
+      FunctionName: !Sub "${AWS::StackName}-ProcessApprovalFunction"
+      CodeUri: .
+      Handler: src/functions/process-approval/app.handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref LeaveRequestsTable
         - Statement:
             Effect: Allow
             Action:
-              - states:StartExecution
-              - states:DescribeExecution
-              - states:StopExecution
+              - states:SendTaskSuccess
+              - states:SendTaskFailure
+              - states:SendTaskHeartbeat
             Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
       Environment:
         Variables:
           LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
-      Events:
-        ApproveLeaveApi:
-          Type: Api
-          Properties:
-            Path: /leaves/{requestId}/approve
-            Method: get
-            RestApiId: !Ref LeaveManagementApi
-            Auth:
-              Authorizer: NONE
-        RejectLeaveApi:
-          Type: Api
-          Properties:
-            Path: /leaves/{requestId}/reject
-            Method: get
-            RestApiId: !Ref LeaveManagementApi
-            Auth:
-              Authorizer: NONE
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -177,21 +122,12 @@ Resources:
         EntryPoints:
           - src/functions/process-approval/app.ts
 
-  ProcessApprovalFunctionApiPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt ProcessApprovalFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*/*/*"
-    DependsOn:
-      - LeaveManagementApi
-
   SendNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: . # Keep as . as package.json is in root
-      Handler: src/functions/send-notification/app.handler # <-- IMPORTANT: Update Handler to full path
+      FunctionName: !Sub "${AWS::StackName}-SendNotificationFunction"
+      CodeUri: .
+      Handler: src/functions/send-notification/app.handler
       Policies:
         - Statement:
             Effect: Allow
@@ -213,13 +149,48 @@ Resources:
         EntryPoints:
           - src/functions/send-notification/app.ts
 
+  # Lambda Permissions for API Gateway
+  ApplyLeaveFunctionApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ApplyLeaveFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/POST/leaves"
+    DependsOn: LeaveManagementApi
+
+  ProcessApprovalFunctionApproveApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ProcessApprovalFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/*/approve"
+    DependsOn: LeaveManagementApi
+
+  ProcessApprovalFunctionRejectApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ProcessApprovalFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/*/reject"
+    DependsOn: LeaveManagementApi
+
+  CustomAuthorizerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CustomAuthorizerLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/authorizers/*"
+    DependsOn: LeaveManagementApi
+
   LeaveApprovalStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
       DefinitionSubstitutions:
-        CreateLeaveRequestLambdaArn: !GetAtt ApplyLeaveFunction.Arn
         SendApprovalEmailLambdaArn: !GetAtt SendNotificationFunction.Arn
-        ProcessApprovalLambdaArn: !GetAtt ProcessApprovalFunction.Arn
         SendUserApprovalNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
         SendUserRejectionNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
       DefinitionUri: statemachine/leave_approval_workflow.asl.json
@@ -233,22 +204,16 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - states.amazonaws.com
-            Action:
-              - sts:AssumeRole
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
         - PolicyName: StepFunctionsLambdaInvokePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !GetAtt SendNotificationFunction.Arn
-                  - !GetAtt ApplyLeaveFunction.Arn
-                  - !GetAtt ProcessApprovalFunction.Arn
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt SendNotificationFunction.Arn
         - PolicyName: StepFunctionsDDBAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -272,11 +237,13 @@ Resources:
 
 Outputs:
   LeaveManagementApiUrl:
-    Description: "API Gateway endpoint URL for Leave Management API"
+    Description: API Gateway endpoint URL for Leave Management API
     Value: !Sub "https://${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+
   LeaveApprovalStateMachineArn:
-    Description: "Leave Approval Step Functions State Machine ARN"
+    Description: Leave Approval Step Functions State Machine ARN
     Value: !Ref LeaveApprovalStateMachine
+
   LeaveRequestsTableName:
-    Description: "DynamoDB Table Name for Leave Requests"
+    Description: DynamoDB Table Name for Leave Requests
     Value: !Ref LeaveRequestsTable
