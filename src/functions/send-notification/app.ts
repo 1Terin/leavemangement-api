@@ -3,9 +3,8 @@ import { Context } from 'aws-lambda';
 
 const sesClient = new SESClient({});
 
-// Configure your SES verified sender email address
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
-const API_GATEWAY_DOMAIN = process.env.API_GATEWAY_DOMAIN; // e.g., 'your-api-id.execute-api.your-region.amazonaws.com'
+const API_GATEWAY_DOMAIN = process.env.API_GATEWAY_DOMAIN; 
 
 interface SendEmailInput {
   recipientEmail: string;
@@ -13,7 +12,7 @@ interface SendEmailInput {
   bodyHtml: string;
   bodyText: string;
   taskToken?: string; // Only for approver email
-  requestId?: string; // For generating approval/rejection links
+  requestId?: string; 
   actionType: 'APPROVER_REQUEST' | 'USER_APPROVAL' | 'USER_REJECTION';
 }
 
@@ -78,6 +77,6 @@ export const handler = async (event: SendEmailInput, context: Context) => {
     console.log("Email sent successfully:", response.MessageId);
   } catch (error) {
     console.error("Error sending email:", error);
-    throw error; // Propagate error for Step Functions to handle
+    throw error; 
   }
 };

@@ -1,8 +1,6 @@
 import { APIGatewayRequestAuthorizerEvent } from 'aws-lambda';
 import * as jwt from 'jsonwebtoken';
 
-// In a real app, this would be retrieved from a secure source (e.g., AWS Secrets Manager)
-// or be a public key from an IDP. For this example, we'll use a simple symmetric key.
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key'; // CHANGE THIS IN PROD!
 
 export function generatePolicy(principalId: string, effect: string, resource: string, context: any) {
@@ -21,7 +19,6 @@ export function generatePolicy(principalId: string, effect: string, resource: st
     authResponse.policyDocument = policyDocument;
   }
 
-  // Add custom context to be passed to the integrated Lambda
   authResponse.context = context;
   return authResponse;
 }

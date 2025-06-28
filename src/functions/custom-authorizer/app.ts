@@ -1,4 +1,3 @@
-// src/functions/custom-authorizer/app.ts (Full code with enhanced logging)
 import { Context, APIGatewayAuthorizerResult } from 'aws-lambda';
 import { verifyToken, generatePolicy, JWTClaims } from '../../util/jwt';
 
@@ -11,7 +10,6 @@ interface TokenAuthorizerEvent {
 export const handler = async (event: TokenAuthorizerEvent, context: Context): Promise<APIGatewayAuthorizerResult> => {
   console.log("Incoming event:", JSON.stringify(event, null, 2));
 
-  // Attempt to extract token
   const token = event.authorizationToken?.split(' ')[1];
   console.log("Extracted token status:", token ? "Token present and extracted" : "Token missing or malformed");
 
@@ -22,7 +20,7 @@ export const handler = async (event: TokenAuthorizerEvent, context: Context): Pr
 
   try {
     console.log("Attempting to verify token using verifyToken function...");
-    const decoded = verifyToken(token); // This is where the issue might be happening if no more logs appear
+    const decoded = verifyToken(token); 
     console.log("Token verification result:", decoded ? "Token successfully decoded." : "Token verification failed (decoded is null/undefined).");
 
     if (!decoded) {

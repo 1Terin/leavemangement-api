@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { UpdateCommand, GetCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { SFNClient, SendTaskSuccessCommand, SendTaskFailureCommand } from "@aws-sdk/client-sfn";
-import { LeaveRequest } from '../../types/leave'; // Adjust path as needed
+import { LeaveRequest } from '../../types/leave'; 
 
 const ddbClient = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
@@ -19,7 +19,6 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     };
   }
 
-  // Extract requestId from path parameters and token from query parameters
   const requestId = event.pathParameters?.requestId;
   const taskToken = event.queryStringParameters?.token;
   const action = event.path.includes('/approve') ? 'approve' : (event.path.includes('/reject') ? 'reject' : null);
@@ -33,7 +32,6 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   try {
-    // 1. Fetch the leave request to validate the task token and status
     const getCommand = new GetCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Key: { requestId: requestId },
@@ -44,12 +42,11 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     if (!leaveRequest || leaveRequest.status !== 'Pending' || leaveRequest.taskToken !== taskToken) {
       console.warn("Invalid or expired leave request or task token:", { requestId, taskToken, status: leaveRequest?.status });
       return {
-        statusCode: 403, // Forbidden, or 400 if already processed
+        statusCode: 403,
         body: JSON.stringify({ message: "This leave request is no longer pending or the approval link is invalid/expired." }),
       };
     }
 
-    // 2. Update DynamoDB status
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
     const updateCommand = new UpdateCommand({
       TableName: LEAVE_REQUESTS_TABLE,
@@ -61,14 +58,13 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       ExpressionAttributeValues: {
         ":newStatus": newStatus,
         ":updatedAt": new Date().toISOString(),
-        ":nullToken": null // Clear the task token after use
+        ":nullToken": null 
       },
       ReturnValues: "ALL_NEW",
     });
     await ddbDocClient.send(updateCommand);
     console.log(`Leave request ${requestId} updated to ${newStatus}.`);
 
-    // 3. Notify Step Function
     const output = {
       status: newStatus,
       requestId: requestId,
@@ -97,7 +93,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'text/html', // Return HTML for a friendly browser message
+        'Content-Type': 'text/html', 
       },
       body: `
         <html>

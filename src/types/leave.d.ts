@@ -3,14 +3,14 @@ export interface LeaveRequest {
   userId: string;
   approverId: string;
   leaveType: 'Sick' | 'Casual' | 'Annual';
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+  startDate: string;
+  endDate: string;   
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected';
-  taskToken?: string; // Stored when Step Function enters wait state
+  taskToken?: string;
   createdAt: string;
   updatedAt: string;
-  userEmail: string; // Email of the user making the request
+  userEmail: string; 
 }
 
 export interface ApprovalAction {
@@ -18,7 +18,7 @@ export interface ApprovalAction {
   action: 'approve' | 'reject';
   approverId: string;
   comments?: string;
-  taskToken: string; // From the email link
+  taskToken: string; 
 }
 
 export interface User {
@@ -26,7 +26,6 @@ export interface User {
   email: string;
   name: string;
   role: 'User' | 'Approver';
-  // Add other user details as needed
 }
 
 export interface JWTClaims {
