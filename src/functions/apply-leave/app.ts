@@ -3,7 +3,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { PutCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { SFNClient, StartExecutionCommand } from "@aws-sdk/client-sfn";
 import { v4 as uuidv4 } from 'uuid';
-import { LeaveRequest } from '../../types/leave'; // Adjust path as needed
+import { LeaveRequest } from '../../types/leave'; 
 
 const ddbClient = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
@@ -23,7 +23,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     };
   }
 
-  const authContext = event.requestContext?.authorizer?.lambda;
+  const authContext = event.requestContext?.authorizer;
 
   if (!authContext || !authContext.userId) {
     console.error("Missing authorizer context:", event.requestContext?.authorizer);
@@ -73,7 +73,6 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   };
 
   try {
-    // Save to DynamoDB
     const putCommand = new PutCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Item: newLeaveRequest,
@@ -81,7 +80,6 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     await ddbDocClient.send(putCommand);
     console.log("Leave request saved:", newLeaveRequest);
 
-    // Start Step Function
     const sfnInput = {
       requestId,
       userId,
