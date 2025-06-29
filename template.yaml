@@ -119,11 +119,13 @@ Resources:
           Properties:
             Path: /leaves/{requestId}/approve
             Method: GET
+            RestApiId: !Ref LeaveManagementApi       
         RejectLeave:
           Type: Api
           Properties:
             Path: /leaves/{requestId}/reject
             Method: GET
+            RestApiId: !Ref LeaveManagementApi
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

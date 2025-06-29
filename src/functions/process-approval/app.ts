@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { UpdateCommand, GetCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { SFNClient, SendTaskSuccessCommand, SendTaskFailureCommand } from "@aws-sdk/client-sfn";
-import { LeaveRequest } from '../../types/leave'; 
+import { LeaveRequest } from '../../types/leave';
 
 const ddbClient = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
@@ -25,8 +25,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   const requestId = event.pathParameters?.requestId;
   const taskToken = decodeURIComponent(event.queryStringParameters?.token || "");
 
-  // Safer action detection based on the defined route
-  const path = event.path || ''; // e.g., /leaves/{requestId}/approve
+  const path = event.path || '';
   let action: "approve" | "reject" | null = null;
 
   if (path.endsWith('/approve')) {
@@ -55,8 +54,10 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     console.log("📦 Retrieved item from DynamoDB:", JSON.stringify(Item, null, 2));
     const leaveRequest = Item as LeaveRequest | undefined;
 
-    if (!leaveRequest || leaveRequest.status !== 'Pending' || leaveRequest.taskToken !== taskToken) {
-      console.warn("❌ Invalid/expired leave request or mismatched token:", { requestId, taskToken, leaveRequest });
+    const storedToken = decodeURIComponent(leaveRequest?.taskToken || '');
+
+    if (!leaveRequest || leaveRequest.status !== 'Pending' || storedToken !== taskToken) {
+      console.warn("❌ Invalid/expired leave request or mismatched token:", { requestId, taskToken, storedToken });
       return {
         statusCode: 403,
         body: JSON.stringify({ message: "This leave request is no longer pending or the approval link is invalid/expired." }),
@@ -91,20 +92,42 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     };
 
     if (action === 'approve') {
-      const successCommand = new SendTaskSuccessCommand({
-        taskToken,
-        output: JSON.stringify(output),
-      });
-      await sfnClient.send(successCommand);
-      console.log("✅ Sent SendTaskSuccess to Step Function.");
+      try {
+        const successCommand = new SendTaskSuccessCommand({
+          taskToken,
+          output: JSON.stringify(output),
+        });
+        await sfnClient.send(successCommand);
+        console.log("✅ Sent SendTaskSuccess to Step Function.");
+      } catch (err) {
+        console.error("💥 Failed to send task success to Step Function:", err);
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message: "Could not approve leave. Possibly expired or already processed.",
+            error: (err as Error).message,
+          }),
+        };
+      }
     } else {
-      const failureCommand = new SendTaskFailureCommand({
-        taskToken,
-        error: "LeaveRejected",
-        cause: "Leave request was rejected by the approver.",
-      });
-      await sfnClient.send(failureCommand);
-      console.log("✅ Sent SendTaskFailure to Step Function.");
+      try {
+        const failureCommand = new SendTaskFailureCommand({
+          taskToken,
+          error: "LeaveRejected",
+          cause: "Leave request was rejected by the approver.",
+        });
+        await sfnClient.send(failureCommand);
+        console.log("✅ Sent SendTaskFailure to Step Function.");
+      } catch (err) {
+        console.error("💥 Failed to send task failure to Step Function:", err);
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message: "Could not reject leave. Possibly expired or already processed.",
+            error: (err as Error).message,
+          }),
+        };
+      }
     }
 
     return {

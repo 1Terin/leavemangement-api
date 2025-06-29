@@ -31,6 +31,8 @@ paths:
   /leaves/{requestId}/approve:
     get:
       summary: Approve a leave request
+      security:
+        - CustomJwtAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: GET
         uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
@@ -51,6 +53,8 @@ paths:
   /leaves/{requestId}/reject:
     get:
       summary: Reject a leave request
+      security:
+        - CustomJwtAuthorizer: []
       x-amazon-apigateway-integration:
         httpMethod: GET
         uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
