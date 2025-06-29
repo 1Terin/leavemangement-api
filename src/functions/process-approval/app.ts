@@ -11,6 +11,9 @@ const sfnClient = new SFNClient({});
 const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+  console.log("🚀 Received request to ProcessApprovalFunction", JSON.stringify(event));
+  console.log("🔍 Incoming event:", JSON.stringify(event, null, 2));
+
   if (!LEAVE_REQUESTS_TABLE) {
     console.error("Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
     return {
@@ -20,11 +23,20 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   const requestId = event.pathParameters?.requestId;
-  const taskToken = event.queryStringParameters?.token;
-  const action = event.path.includes('/approve') ? 'approve' : (event.path.includes('/reject') ? 'reject' : null);
+  const taskToken = decodeURIComponent(event.queryStringParameters?.token || "");
+
+  // Safer action detection based on the defined route
+  const path = event.path || ''; // e.g., /leaves/{requestId}/approve
+  let action: "approve" | "reject" | null = null;
+
+  if (path.endsWith('/approve')) {
+    action = "approve";
+  } else if (path.endsWith('/reject')) {
+    action = "reject";
+  }
 
   if (!requestId || !taskToken || !action) {
-    console.warn("Missing requestId, taskToken, or action in request:", { requestId, taskToken, action });
+    console.warn("Missing requestId, taskToken, or action in request:", { requestId, taskToken, action, path });
     return {
       statusCode: 400,
       body: JSON.stringify({ message: "Invalid approval/rejection link." }),
@@ -32,15 +44,19 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   try {
+    console.log("🧾 Table name:", LEAVE_REQUESTS_TABLE);
+    console.log("🔑 requestId to fetch:", requestId);
     const getCommand = new GetCommand({
       TableName: LEAVE_REQUESTS_TABLE,
-      Key: { requestId: requestId },
+      Key: { requestId },
     });
+
     const { Item } = await ddbDocClient.send(getCommand);
+    console.log("📦 Retrieved item from DynamoDB:", JSON.stringify(Item, null, 2));
     const leaveRequest = Item as LeaveRequest | undefined;
 
     if (!leaveRequest || leaveRequest.status !== 'Pending' || leaveRequest.taskToken !== taskToken) {
-      console.warn("Invalid or expired leave request or task token:", { requestId, taskToken, status: leaveRequest?.status });
+      console.warn("❌ Invalid/expired leave request or mismatched token:", { requestId, taskToken, leaveRequest });
       return {
         statusCode: 403,
         body: JSON.stringify({ message: "This leave request is no longer pending or the approval link is invalid/expired." }),
@@ -50,7 +66,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
     const updateCommand = new UpdateCommand({
       TableName: LEAVE_REQUESTS_TABLE,
-      Key: { requestId: requestId },
+      Key: { requestId },
       UpdateExpression: "SET #status = :newStatus, updatedAt = :updatedAt, taskToken = :nullToken",
       ExpressionAttributeNames: {
         "#status": "status",
@@ -58,42 +74,43 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       ExpressionAttributeValues: {
         ":newStatus": newStatus,
         ":updatedAt": new Date().toISOString(),
-        ":nullToken": null 
+        ":nullToken": null
       },
       ReturnValues: "ALL_NEW",
     });
+
     await ddbDocClient.send(updateCommand);
-    console.log(`Leave request ${requestId} updated to ${newStatus}.`);
+    console.log(`✅ Leave request ${requestId} updated to ${newStatus}.`);
 
     const output = {
       status: newStatus,
-      requestId: requestId,
-      approverId: leaveRequest.approverId, 
+      requestId,
+      approverId: leaveRequest.approverId,
       userId: leaveRequest.userId,
-      userEmail: leaveRequest.userEmail, 
+      userEmail: leaveRequest.userEmail,
     };
 
     if (action === 'approve') {
       const successCommand = new SendTaskSuccessCommand({
-        taskToken: taskToken,
+        taskToken,
         output: JSON.stringify(output),
       });
       await sfnClient.send(successCommand);
-      console.log("Sent SendTaskSuccess to Step Function.");
+      console.log("✅ Sent SendTaskSuccess to Step Function.");
     } else {
       const failureCommand = new SendTaskFailureCommand({
-        taskToken: taskToken,
+        taskToken,
         error: "LeaveRejected",
         cause: "Leave request was rejected by the approver.",
       });
       await sfnClient.send(failureCommand);
-      console.log("Sent SendTaskFailure to Step Function.");
+      console.log("✅ Sent SendTaskFailure to Step Function.");
     }
 
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'text/html', 
+        'Content-Type': 'text/html',
       },
       body: `
         <html>
@@ -107,10 +124,13 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       `,
     };
   } catch (error) {
-    console.error("Error processing approval/rejection:", error);
+    console.error("💥 Error processing approval/rejection:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: "Failed to process approval/rejection.", error: (error as Error).message }),
+      body: JSON.stringify({
+        message: "Failed to process approval/rejection.",
+        error: (error as Error).message,
+      }),
     };
   }
 };

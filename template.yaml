@@ -100,6 +100,7 @@ Resources:
       CodeUri: .
       Handler: src/functions/process-approval/app.handler
       Policies:
+        - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
             TableName: !Ref LeaveRequestsTable
         - Statement:
@@ -108,10 +109,21 @@ Resources:
               - states:SendTaskSuccess
               - states:SendTaskFailure
               - states:SendTaskHeartbeat
-            Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
+            Resource: !GetAtt LeaveApprovalStateMachine.Arn
       Environment:
         Variables:
           LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
+      Events:
+        ApproveLeave:
+          Type: Api
+          Properties:
+            Path: /leaves/{requestId}/approve
+            Method: GET
+        RejectLeave:
+          Type: Api
+          Properties:
+            Path: /leaves/{requestId}/reject
+            Method: GET
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -129,6 +141,9 @@ Resources:
       CodeUri: .
       Handler: src/functions/send-notification/app.handler
       Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveRequestsTable
         - Statement:
             Effect: Allow
             Action:
@@ -137,8 +152,9 @@ Resources:
             Resource: '*'
       Environment:
         Variables:
-          SENDER_EMAIL: terinchris2005@gmail.com
+          SENDER_EMAIL: "terinchris2005@gmail.com"
           API_GATEWAY_DOMAIN: !Sub '${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com'
+          LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -193,6 +209,7 @@ Resources:
         SendApprovalEmailLambdaArn: !GetAtt SendNotificationFunction.Arn
         SendUserApprovalNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
         SendUserRejectionNotificationLambdaArn: !GetAtt SendNotificationFunction.Arn
+        APIGatewayUrl: !Sub "https://${LeaveManagementApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
       DefinitionUri: statemachine/leave_approval_workflow.asl.json
       Role: !GetAtt StepFunctionsExecutionRole.Arn
 

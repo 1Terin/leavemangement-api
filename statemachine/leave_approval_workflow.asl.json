@@ -1,22 +1,10 @@
 {
-  "Comment": "Leave Management Workflow",
-  "StartAt": "StoreTaskToken",
+  "Comment": "Leave Management Workflow for Human Approval",
+  "StartAt": "SendApprovalRequestAndAwaitApproval",
   "States": {
-    "StoreTaskToken": {
+    "SendApprovalRequestAndAwaitApproval": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": {
-        "FunctionName": "${StoreTaskTokenLambdaArn}",
-        "Payload": {
-          "requestId.$": "$.requestId",
-          "taskToken.$": "$$.Task.Token"
-        }
-      },
-      "Next": "SendApprovalEmail"
-    },
-    "SendApprovalEmail": {
-      "Type": "Task", 
-      "Resource": "arn:aws:states:::lambda:invoke",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
       "Parameters": {
         "FunctionName": "${SendApprovalEmailLambdaArn}",
         "Payload": {
@@ -24,34 +12,41 @@
           "userId.$": "$.userId",
           "userEmail.$": "$.userEmail",
           "approverId.$": "$.approverId",
+          "approverEmail.$": "$.approverEmail",
           "leaveDetails.$": "$.leaveDetails",
-          "actionType": "APPROVER_REQUEST"
+          "actionType": "APPROVER_REQUEST",
+          "taskToken.$": "$$.Task.Token",
+          "apiGatewayUrl": "${APIGatewayUrl}"
         }
       },
-      "Next": "WaitForApproval"
-    },
-    "WaitForApproval": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:dynamodb:getItem.waitForTaskToken",
-      "Parameters": {
-        "TableName": "${TableName}",
-        "Key": {
-          "requestId": {"S.$": "$.requestId"}
+      "ResultPath": "$.approvalResult",
+      "Next": "CheckApprovalResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "LeaveRejected"],
+          "Next": "SendRejectionNotification",
+          "ResultPath": "$.error"
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "HandleWorkflowFailure",
+          "ResultPath": "$.error"
         }
-      },
-      "Next": "CheckApprovalResult"
+      ]
     },
+
     "CheckApprovalResult": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.status",
+          "Variable": "$.approvalResult.status",
           "StringEquals": "Approved",
           "Next": "SendApprovalNotification"
         }
       ],
       "Default": "SendRejectionNotification"
     },
+
     "SendApprovalNotification": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
@@ -60,27 +55,39 @@
         "Payload": {
           "recipientEmail.$": "$.userEmail",
           "subject": "Leave Request Approved",
-          "bodyHtml": "Your leave request has been approved!",
-          "bodyText": "Your leave request has been approved!",
-          "actionType": "USER_APPROVAL"
+          "bodyHtml.$": "States.Format('<p>Hello,</p><p>Your leave request from {} to {} has been approved.</p>', $.leaveDetails.startDate, $.leaveDetails.endDate)",
+          "bodyText.$": "States.Format('Your leave request from {} to {} has been approved.', $.leaveDetails.startDate, $.leaveDetails.endDate)",
+          "actionType": "USER_APPROVAL",
+          "status.$": "$.approvalResult.status"
         }
       },
       "End": true
     },
+
     "SendRejectionNotification": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke", 
+      "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "${SendUserRejectionNotificationLambdaArn}",
         "Payload": {
           "recipientEmail.$": "$.userEmail",
           "subject": "Leave Request Rejected",
-          "bodyHtml": "Your leave request has been rejected.",
-          "bodyText": "Your leave request has been rejected.",
-          "actionType": "USER_REJECTION"
+          "bodyHtml.$": "States.Format('<p>Hello,</p><p>Your leave request from {} to {} was rejected.</p>', $.leaveDetails.startDate, $.leaveDetails.endDate)",
+          "bodyText.$": "States.Format('Your leave request from {} to {} was rejected.', $.leaveDetails.startDate, $.leaveDetails.endDate)",
+          "actionType": "USER_REJECTION",
+          "status": "Rejected"
         }
       },
       "End": true
+    },
+
+    "HandleWorkflowFailure": {
+      "Type": "Pass",
+      "End": true,
+      "Parameters": {
+        "error.$": "$.error",
+        "message": "Workflow encountered an unhandled error."
+      }
     }
   }
 }

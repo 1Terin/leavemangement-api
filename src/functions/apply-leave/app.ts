@@ -43,13 +43,13 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     };
   }
 
-  const { leaveType, startDate, endDate, reason, approverId } = requestBody;
+  const { leaveType, startDate, endDate, reason, approverId, approverEmail } = requestBody;
 
-  if (!leaveType || !startDate || !endDate || !reason || !approverId) {
+  if (!leaveType || !startDate || !endDate || !reason || !approverId || !approverEmail) {
     return {
       statusCode: 400,
       body: JSON.stringify({
-        message: "Missing required fields: leaveType, startDate, endDate, reason, approverId.",
+        message: "Missing required fields: leaveType, startDate, endDate, reason, approverId, approverEmail.",
       }),
     };
   }
@@ -84,6 +84,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       requestId,
       userId,
       approverId,
+      approverEmail,
       leaveDetails: {
         leaveType,
         startDate,

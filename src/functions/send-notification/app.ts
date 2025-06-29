@@ -1,82 +1,106 @@
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { Context } from 'aws-lambda';
+import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 
+const ddbClient = new DynamoDBClient({});
 const sesClient = new SESClient({});
-
+const LEAVE_REQUESTS_TABLE_NAME = process.env.LEAVE_REQUESTS_TABLE_NAME;
 const SENDER_EMAIL = process.env.SENDER_EMAIL;
-const API_GATEWAY_DOMAIN = process.env.API_GATEWAY_DOMAIN; 
 
-interface SendEmailInput {
-  recipientEmail: string;
-  subject: string;
-  bodyHtml: string;
-  bodyText: string;
-  taskToken?: string; // Only for approver email
-  requestId?: string; 
-  actionType: 'APPROVER_REQUEST' | 'USER_APPROVAL' | 'USER_REJECTION';
-}
+export const handler = async (event: any) => {
+    console.log("SendNotificationFunction received event:", JSON.stringify(event, null, 2));
 
-export const handler = async (event: SendEmailInput, context: Context) => {
-  console.log("Received event for sending email:", JSON.stringify(event, null, 2));
+    const actionType = event.actionType ?? (event.taskToken ? "APPROVER_REQUEST" : "USER_REJECTION");
 
-  if (!SENDER_EMAIL || !API_GATEWAY_DOMAIN) {
-    console.error("Environment variables not set: SENDER_EMAIL or API_GATEWAY_DOMAIN");
-    throw new Error("Configuration error: SES sender email or API Gateway domain not set.");
-  }
+    if (actionType === "APPROVER_REQUEST") {
+        // ✅ Move destructuring here
+        const {
+            requestId,
+            userEmail,
+            approverEmail,
+            approverId,
+            leaveType,
+            startDate,
+            endDate,
+            reason,
+            taskToken,
+            apiGatewayUrl,
+            leaveDetails
+        } = event;
 
-  const { recipientEmail, subject, bodyHtml, bodyText, taskToken, requestId, actionType } = event;
+        if (!requestId || !taskToken || !apiGatewayUrl) {
+            console.error("Missing required parameters for SendNotificationFunction:", { requestId, taskToken, apiGatewayUrl });
+            throw new Error("Missing required parameters.");
+        }
 
-  let finalBodyHtml = bodyHtml;
-  let finalBodyText = bodyText;
+        // Store task token
+        await ddbClient.send(new UpdateItemCommand({
+            TableName: LEAVE_REQUESTS_TABLE_NAME,
+            Key: { requestId: { S: requestId } },
+            UpdateExpression: "SET taskToken = :token",
+            ExpressionAttributeValues: { ":token": { S: taskToken } }
+        }));
+        console.log("Task token stored in DynamoDB for requestId:", requestId);
 
-  if (actionType === 'APPROVER_REQUEST' && taskToken && requestId) {
-    const approveLink = `https://${API_GATEWAY_DOMAIN}/prod/leaves/${requestId}/approve?token=${encodeURIComponent(taskToken)}`;
-    const rejectLink = `https://${API_GATEWAY_DOMAIN}/prod/leaves/${requestId}/reject?token=${encodeURIComponent(taskToken)}`;
+        // Generate links
+        const approveLink = `${apiGatewayUrl}/leaves/${requestId}/approve?token=${encodeURIComponent(taskToken)}`;
+        const rejectLink = `${apiGatewayUrl}/leaves/${requestId}/reject?token=${encodeURIComponent(taskToken)}`;
 
-    finalBodyHtml = `
-      <p>${bodyHtml}</p>
-      <p>Please review the leave request:</p>
-      <p><a href="${approveLink}">Approve Leave</a></p>
-      <p><a href="${rejectLink}">Reject Leave</a></p>
-      <p>Request ID: ${requestId}</p>
-    `;
-    finalBodyText = `
-      ${bodyText}
-      Please review the leave request:
-      Approve: ${approveLink}
-      Reject: ${rejectLink}
-      Request ID: ${requestId}
-    `;
-  }
+        // Build email content
+        const subject = "New Leave Request for Approval";
+        const details = leaveDetails || { leaveType, startDate, endDate, reason }; // support both formats
 
-  const command = new SendEmailCommand({
-    Destination: {
-      ToAddresses: [recipientEmail],
-    },
-    Message: {
-      Body: {
-        Html: {
-          Charset: "UTF-8",
-          Data: finalBodyHtml,
-        },
-        Text: {
-          Charset: "UTF-8",
-          Data: finalBodyText,
-        },
-      },
-      Subject: {
-        Charset: "UTF-8",
-        Data: subject,
-      },
-    },
-    Source: SENDER_EMAIL,
-  });
+        const bodyHtml = `
+            <p>Dear Approver,</p>
+            <p>A new leave request from ${userEmail} requires your approval:</p>
+            <ul>
+                <li>Leave Type: ${details.leaveType}</li>
+                <li>Start Date: ${details.startDate}</li>
+                <li>End Date: ${details.endDate}</li>
+                <li>Reason: ${details.reason}</li>
+            </ul>
+            <p><a href="${approveLink}">Approve</a> | <a href="${rejectLink}">Reject</a></p>
+        `;
+        const bodyText = `New leave request from ${userEmail}. Approve: ${approveLink} | Reject: ${rejectLink}`;
 
-  try {
-    const response = await sesClient.send(command);
-    console.log("Email sent successfully:", response.MessageId);
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error; 
-  }
+        await sesClient.send(new SendEmailCommand({
+            Source: SENDER_EMAIL,
+            Destination: { ToAddresses: [approverEmail] },
+            Message: {
+                Subject: { Data: subject },
+                Body: {
+                    Html: { Data: bodyHtml },
+                    Text: { Data: bodyText }
+                }
+            }
+        }));
+
+        console.log("Approval request email sent to:", approverEmail);
+        return { success: true, message: "Approval email sent." };
+
+    } else if (actionType === "USER_REJECTION") {
+        const { recipientEmail, subject, bodyHtml, bodyText } = event;
+
+        if (!recipientEmail || !subject || !bodyHtml || !bodyText) {
+            throw new Error("Missing fields for USER_REJECTION.");
+        }
+
+        await sesClient.send(new SendEmailCommand({
+            Source: SENDER_EMAIL,
+            Destination: { ToAddresses: [recipientEmail] },
+            Message: {
+                Subject: { Data: subject },
+                Body: {
+                    Html: { Data: bodyHtml },
+                    Text: { Data: bodyText }
+                }
+            }
+        }));
+
+        console.log("Rejection email sent to:", recipientEmail);
+        return { success: true, message: "Rejection email sent." };
+
+    } else {
+        console.error("Unknown actionType:", actionType);
+        throw new Error("Unknown actionType.");
+    }
 };

@@ -53,7 +53,7 @@ paths:
       summary: Reject a leave request
       x-amazon-apigateway-integration:
         httpMethod: GET
-        uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:123456789012:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
+        uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
         passthroughBehavior: when_no_match
         type: aws_proxy
       parameters:
