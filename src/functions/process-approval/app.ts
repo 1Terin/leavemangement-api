@@ -12,13 +12,12 @@ const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
   console.log("🚀 Received request to ProcessApprovalFunction", JSON.stringify(event));
-  console.log("🔍 Incoming event:", JSON.stringify(event, null, 2));
 
   if (!LEAVE_REQUESTS_TABLE) {
-    console.error("Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
+    console.error("❌ Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: "Configuration error." }),
+      body: JSON.stringify({ message: "LEAVE_REQUESTS_TABLE_NAME is not configured." }),
     };
   }
 
@@ -27,15 +26,11 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
 
   const path = event.path || '';
   let action: "approve" | "reject" | null = null;
-
-  if (path.endsWith('/approve')) {
-    action = "approve";
-  } else if (path.endsWith('/reject')) {
-    action = "reject";
-  }
+  if (path.endsWith('/approve')) action = "approve";
+  if (path.endsWith('/reject')) action = "reject";
 
   if (!requestId || !taskToken || !action) {
-    console.warn("Missing requestId, taskToken, or action in request:", { requestId, taskToken, action, path });
+    console.warn("⚠️ Missing requestId, taskToken, or action:", { requestId, taskToken, action });
     return {
       statusCode: 400,
       body: JSON.stringify({ message: "Invalid approval/rejection link." }),
@@ -43,29 +38,29 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   try {
-    console.log("🧾 Table name:", LEAVE_REQUESTS_TABLE);
-    console.log("🔑 requestId to fetch:", requestId);
-    const getCommand = new GetCommand({
+    console.log("🔍 Fetching leave request:", requestId);
+    const { Item } = await ddbDocClient.send(new GetCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Key: { requestId },
-    });
+    }));
 
-    const { Item } = await ddbDocClient.send(getCommand);
-    console.log("📦 Retrieved item from DynamoDB:", JSON.stringify(Item, null, 2));
     const leaveRequest = Item as LeaveRequest | undefined;
+    console.log("📦 Retrieved leaveRequest:", leaveRequest);
 
     const storedToken = decodeURIComponent(leaveRequest?.taskToken || '');
 
     if (!leaveRequest || leaveRequest.status !== 'Pending' || storedToken !== taskToken) {
-      console.warn("❌ Invalid/expired leave request or mismatched token:", { requestId, taskToken, storedToken });
+      console.warn("⛔ Invalid or expired token:", { storedToken, taskToken });
       return {
         statusCode: 403,
-        body: JSON.stringify({ message: "This leave request is no longer pending or the approval link is invalid/expired." }),
+        body: JSON.stringify({ message: "Link expired or already used." }),
       };
     }
 
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
-    const updateCommand = new UpdateCommand({
+
+    console.log(`🔄 Updating status to ${newStatus}`);
+    await ddbDocClient.send(new UpdateCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Key: { requestId },
       UpdateExpression: "SET #status = :newStatus, updatedAt = :updatedAt, taskToken = :nullToken",
@@ -77,81 +72,67 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
         ":updatedAt": new Date().toISOString(),
         ":nullToken": null
       },
-      ReturnValues: "ALL_NEW",
-    });
+    }));
 
-    await ddbDocClient.send(updateCommand);
-    console.log(`✅ Leave request ${requestId} updated to ${newStatus}.`);
+    console.log("✅ DynamoDB status updated.");
 
-    const output = {
-      status: newStatus,
-      requestId,
-      approverId: leaveRequest.approverId,
-      userId: leaveRequest.userId,
-      userEmail: leaveRequest.userEmail,
-    };
-
+    // Send task result to Step Function
     if (action === 'approve') {
-      try {
-        const successCommand = new SendTaskSuccessCommand({
-          taskToken,
-          output: JSON.stringify(output),
-        });
-        await sfnClient.send(successCommand);
-        console.log("✅ Sent SendTaskSuccess to Step Function.");
-      } catch (err) {
-        console.error("💥 Failed to send task success to Step Function:", err);
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            message: "Could not approve leave. Possibly expired or already processed.",
-            error: (err as Error).message,
-          }),
-        };
-      }
+      console.log("📤 Sending SendTaskSuccess");
+      await sfnClient.send(new SendTaskSuccessCommand({
+        taskToken,
+        output: JSON.stringify({
+          status: newStatus,
+          requestId,
+          userId: leaveRequest.userId,
+          approverId: leaveRequest.approverId,
+          userEmail: leaveRequest.userEmail,
+        }),
+      }));
     } else {
-      try {
-        const failureCommand = new SendTaskFailureCommand({
-          taskToken,
-          error: "LeaveRejected",
-          cause: "Leave request was rejected by the approver.",
-        });
-        await sfnClient.send(failureCommand);
-        console.log("✅ Sent SendTaskFailure to Step Function.");
-      } catch (err) {
-        console.error("💥 Failed to send task failure to Step Function:", err);
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            message: "Could not reject leave. Possibly expired or already processed.",
-            error: (err as Error).message,
-          }),
-        };
-      }
+      console.log("📤 Sending SendTaskFailure");
+      await sfnClient.send(new SendTaskFailureCommand({
+        taskToken,
+        error: "LeaveRejected",
+        cause: "Leave request was rejected by the approver.",
+      }));
     }
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/html',
-      },
-      body: `
-        <html>
-        <head><title>Leave Request ${newStatus}</title></head>
-        <body>
-          <h1>Leave Request ${newStatus}!</h1>
-          <p>Your action for Request ID: <strong>${requestId}</strong> has been recorded.</p>
-          <p>You can close this window.</p>
-        </body>
-        </html>
-      `,
-    };
+    const userAgent = (event.headers['User-Agent'] || '').toLowerCase();
+    const acceptHeader = (event.headers['Accept'] || '').toLowerCase();  
+    const isBrowser = userAgent.includes('mozilla') && !userAgent.includes('postman') && acceptHeader.includes('text/html');
+
+    console.log(`🧭 Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}`);
+
+    if (isBrowser) {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/html' },
+        body: `
+          <html>
+            <head><title>Leave ${newStatus}</title></head>
+            <body>
+              <h2>✅ Leave ${newStatus}</h2>
+              <p>Request ID <strong>${requestId}</strong> has been updated successfully.</p>
+              <p>You may close this tab.</p>
+            </body>
+          </html>`,
+      };
+    } else {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          message: `Leave ${newStatus} for request ${requestId} was processed.`,
+        }),
+      };
+    }
+
   } catch (error) {
-    console.error("💥 Error processing approval/rejection:", error);
+    console.error("💥 Error:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({
-        message: "Failed to process approval/rejection.",
+        message: "Internal server error",
         error: (error as Error).message,
       }),
     };
