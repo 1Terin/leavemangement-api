@@ -1,7 +1,7 @@
 import { APIGatewayRequestAuthorizerEvent } from 'aws-lambda';
 import * as jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key'; // CHANGE THIS IN PROD!
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key'; 
 
 export function generatePolicy(principalId: string, effect: string, resource: string, context: any) {
   const authResponse: any = {};

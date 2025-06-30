@@ -39,11 +39,9 @@ export const handler = async (event: any) => {
         }));
         console.log("Task token stored in DynamoDB for requestId:", requestId);
 
-        // Generate links
         const approveLink = `${apiGatewayUrl}/leaves/${requestId}/approve?token=${encodeURIComponent(taskToken)}`;
         const rejectLink = `${apiGatewayUrl}/leaves/${requestId}/reject?token=${encodeURIComponent(taskToken)}`;
 
-        // Build email content
         const subject = "New Leave Request for Approval";
         const details = leaveDetails || { leaveType, startDate, endDate, reason }; // support both formats
 

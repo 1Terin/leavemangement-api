@@ -11,10 +11,10 @@ const sfnClient = new SFNClient({});
 const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-  console.log("🚀 Received request to ProcessApprovalFunction", JSON.stringify(event));
+  console.log("Received request to ProcessApprovalFunction", JSON.stringify(event));
 
   if (!LEAVE_REQUESTS_TABLE) {
-    console.error("❌ Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
+    console.error("Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
     return {
       statusCode: 500,
       body: JSON.stringify({ message: "LEAVE_REQUESTS_TABLE_NAME is not configured." }),
@@ -30,7 +30,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   if (path.endsWith('/reject')) action = "reject";
 
   if (!requestId || !taskToken || !action) {
-    console.warn("⚠️ Missing requestId, taskToken, or action:", { requestId, taskToken, action });
+    console.warn("Missing requestId, taskToken, or action:", { requestId, taskToken, action });
     return {
       statusCode: 400,
       body: JSON.stringify({ message: "Invalid approval/rejection link." }),
@@ -50,7 +50,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     const storedToken = decodeURIComponent(leaveRequest?.taskToken || '');
 
     if (!leaveRequest || leaveRequest.status !== 'Pending' || storedToken !== taskToken) {
-      console.warn("⛔ Invalid or expired token:", { storedToken, taskToken });
+      console.warn("Invalid or expired token:", { storedToken, taskToken });
       return {
         statusCode: 403,
         body: JSON.stringify({ message: "Link expired or already used." }),
@@ -74,10 +74,10 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       },
     }));
 
-    console.log("✅ DynamoDB status updated.");
+    console.log("DynamoDB status updated.");
 
     if (action === 'approve') {
-      console.log("📤 Sending SendTaskSuccess");
+      console.log("Sending SendTaskSuccess");
       await sfnClient.send(new SendTaskSuccessCommand({
         taskToken,
         output: JSON.stringify({
@@ -89,7 +89,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
         }),
       }));
     } else {
-      console.log("📤 Sending SendTaskFailure");
+      console.log("Sending SendTaskFailure");
       await sfnClient.send(new SendTaskFailureCommand({
         taskToken,
         error: "LeaveRejected",
@@ -97,11 +97,11 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
       }));
     }
 
-    const userAgent = (event.headers['User-Agent'] || '').toLowerCase();
-    const acceptHeader = (event.headers['Accept'] || '').toLowerCase();  
+    const userAgent = (event.headers?.['User-Agent'] || '').toLowerCase();
+    const acceptHeader = (event.headers?.['Accept'] || '').toLowerCase();  
     const isBrowser = userAgent.includes('mozilla') && !userAgent.includes('postman') && acceptHeader.includes('text/html');
 
-    console.log(`🧭 Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}`);
+    console.log(`Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}`);
 
     if (isBrowser) {
       return {
@@ -111,7 +111,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
           <html>
             <head><title>Leave ${newStatus}</title></head>
             <body>
-              <h2>✅ Leave ${newStatus}</h2>
+              <h2> Leave ${newStatus}</h2>
               <p>Request ID <strong>${requestId}</strong> has been updated successfully.</p>
               <p>You may close this tab.</p>
             </body>
@@ -127,7 +127,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     }
 
   } catch (error) {
-    console.error("💥 Error:", error);
+    console.error("Error:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({

@@ -152,6 +152,11 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-ProcessApprovalFunction"
+
+              - Effect: Allow
+                Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
@@ -178,11 +183,6 @@ Resources:
               - Effect: Allow
                 Action:
                   - states:DescribeExecution
-                Resource: "*"
-
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
                 Resource: "*"
 
   SendNotificationFunction:
@@ -216,7 +216,6 @@ Resources:
         EntryPoints:
           - src/functions/send-notification/app.ts
 
-  # Lambda Permissions for API Gateway
   ApplyLeaveFunctionApiPermission:
     Type: AWS::Lambda::Permission
     Properties:
