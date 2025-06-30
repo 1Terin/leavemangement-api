@@ -6,7 +6,7 @@ Globals:
   Function:
     Runtime: nodejs20.x
     MemorySize: 256
-    Timeout: 30
+    Timeout: 28
     Architectures:
       - x86_64
     Tracing: Active
@@ -99,11 +99,19 @@ Resources:
       FunctionName: !Sub "${AWS::StackName}-ProcessApprovalFunction"
       CodeUri: .
       Handler: src/functions/process-approval/app.handler
+      Role: !GetAtt ProcessApprovalFunctionRole.Arn
       Policies:
         - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
             TableName: !Ref LeaveRequestsTable
         - Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: "*"
+
             Effect: Allow
             Action:
               - states:SendTaskSuccess
@@ -113,19 +121,7 @@ Resources:
       Environment:
         Variables:
           LEAVE_REQUESTS_TABLE_NAME: !Ref LeaveRequestsTable
-      Events:
-        ApproveLeave:
-          Type: Api
-          Properties:
-            Path: /leaves/{requestId}/approve
-            Method: GET
-            RestApiId: !Ref LeaveManagementApi       
-        RejectLeave:
-          Type: Api
-          Properties:
-            Path: /leaves/{requestId}/reject
-            Method: GET
-            RestApiId: !Ref LeaveManagementApi
+
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -135,6 +131,59 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - src/functions/process-approval/app.ts
+  
+  ProcessApprovalFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-ProcessApprovalFunctionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FullProcessApprovalPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                Resource: !GetAtt LeaveApprovalStateMachine.Arn
+
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt LeaveRequestsTable.Arn
+
+              - Effect: Allow
+                Action:
+                  - cloudwatch:*
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: "*"
 
   SendNotificationFunction:
     Type: AWS::Serverless::Function

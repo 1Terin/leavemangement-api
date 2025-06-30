@@ -21,7 +21,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     };
   }
 
-  const requestId = event.pathParameters?.requestId;
+  const requestId = event.queryStringParameters?.requestId;
   const taskToken = decodeURIComponent(event.queryStringParameters?.token || "");
 
   const path = event.path || '';
@@ -76,7 +76,6 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
 
     console.log("✅ DynamoDB status updated.");
 
-    // Send task result to Step Function
     if (action === 'approve') {
       console.log("📤 Sending SendTaskSuccess");
       await sfnClient.send(new SendTaskSuccessCommand({

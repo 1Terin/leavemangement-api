@@ -12,7 +12,6 @@ export const handler = async (event: any) => {
     const actionType = event.actionType ?? (event.taskToken ? "APPROVER_REQUEST" : "USER_REJECTION");
 
     if (actionType === "APPROVER_REQUEST") {
-        // ✅ Move destructuring here
         const {
             requestId,
             userEmail,
@@ -32,7 +31,6 @@ export const handler = async (event: any) => {
             throw new Error("Missing required parameters.");
         }
 
-        // Store task token
         await ddbClient.send(new UpdateItemCommand({
             TableName: LEAVE_REQUESTS_TABLE_NAME,
             Key: { requestId: { S: requestId } },

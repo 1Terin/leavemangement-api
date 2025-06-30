@@ -28,7 +28,7 @@ paths:
         '500':
           description: Internal server error
 
-  /leaves/{requestId}/approve:
+  /leaves/approve:
     get:
       summary: Approve a leave request
       security:
@@ -38,8 +38,9 @@ paths:
         uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
         passthroughBehavior: when_no_match
         type: aws_proxy
+        credentials: arn:aws:iam::043309342820:role/leavemanagementapi-stack-ProcessApprovalFunctionRole
       parameters:
-        - in: path
+        - in: query
           name: requestId
           required: true
           schema:
@@ -50,7 +51,7 @@ paths:
         '404':
           description: Request ID not found
 
-  /leaves/{requestId}/reject:
+  /leaves/reject:
     get:
       summary: Reject a leave request
       security:
@@ -60,8 +61,9 @@ paths:
         uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
         passthroughBehavior: when_no_match
         type: aws_proxy
+        credentials: arn:aws:iam::043309342820:role/leavemanagementapi-stack-ProcessApprovalFunctionRole
       parameters:
-        - in: path
+        - in: query
           name: requestId
           required: true
           schema:
