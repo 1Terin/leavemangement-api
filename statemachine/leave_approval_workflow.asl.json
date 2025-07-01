@@ -19,21 +19,29 @@
           "apiGatewayUrl": "${APIGatewayUrl}"
         }
       },
-      "TimeoutSeconds": 86000, 
-      "ResultPath": "$.approvalResult",
-      "Next": "CheckApprovalResult",
       "Catch": [
         {
-          "ErrorEquals": ["States.TaskFailed", "LeaveRejected"],
+          "ErrorEquals": [
+            "States.TaskFailed",
+            "LeaveRejected",
+            "States.Timeout", 
+            "States.HeartbeatTimeout" 
+          ],
           "Next": "SendRejectionNotification",
           "ResultPath": "$.error"
         },
         {
-          "ErrorEquals": ["States.ALL"],
+          "ErrorEquals": [
+            "States.ALL"
+          ],
           "Next": "HandleWorkflowFailure",
           "ResultPath": "$.error"
         }
-      ]
+      ],
+      "TimeoutSeconds": 86400,
+      "HeartbeatSeconds": 300,
+      "ResultPath": "$.approvalResult",
+      "Next": "CheckApprovalResult"
     },
 
     "CheckApprovalResult": {

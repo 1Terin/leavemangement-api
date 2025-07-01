@@ -11,7 +11,6 @@ const sfnClient = new SFNClient({});
 const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-    // This log should ideally appear only once per invocation.
     console.log(`INFO: Request received for ${event.httpMethod} ${event.path}. RequestId: ${context.awsRequestId}`);
 
     if (!LEAVE_REQUESTS_TABLE) {
@@ -23,19 +22,14 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     }
 
     const requestId = event.queryStringParameters?.requestId;
-    let taskToken: string; // Declared here for broader scope
+
+    let tokenFromUrl: string;
 
     try {
-        // --- START essential change for '+' vs ' ' ---
-        // Original token from URL
         let rawTaskTokenFromUrl = event.queryStringParameters?.token || '';
-        // Replace '+' with space before decoding, as '+' is often used for spaces in query strings
-        // This ensures consistency when comparing with the stored token
-        taskToken = decodeURIComponent(rawTaskTokenFromUrl.replace(/\+/g, ' ')).trim();
-        // --- END essential change ---
+        tokenFromUrl = tokenFromUrl = decodeURIComponent(rawTaskTokenFromUrl.replace(/\+/g, ' ')).replace(/\s/g, '+').trim();
     } catch (decodeErr) {
-        // Log the error message directly from the decodeErr object
-        console.warn("WARN: Malformed token during decode:", (decodeErr as Error).message);
+        console.warn("WARN: Malformed token during URL decode:", (decodeErr as Error).message);
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Malformed approval token." }),
@@ -47,13 +41,15 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     if (path.includes('/approve')) action = "approve";
     if (path.includes('/reject')) action = "reject";
 
-    if (!requestId || !taskToken || !action) {
-        console.warn(`WARN: Missing required parameters. requestId: ${requestId || 'N/A'}, action: ${action || 'N/A'}, taskToken length: ${taskToken.length}`);
+    if (!requestId || !tokenFromUrl || !action) {
+        console.warn(`WARN: Missing required parameters. requestId: ${requestId || 'N/A'}, action: ${action || 'N/A'}, tokenFromUrl length: ${tokenFromUrl.length}`);
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Invalid approval/rejection link. Missing parameters." }),
         };
     }
+
+    let taskTokenFromDbForSfn: string;
 
     try {
         console.log(`INFO: Fetching leave request for ID: ${requestId}`);
@@ -69,43 +65,36 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
             console.log(`INFO: No leave request found for ID: ${requestId}`);
         }
 
-        // --- START essential change for '+' vs ' ' ---
-        // Token stored in DynamoDB
         let rawStoredTokenFromDb = leaveRequest?.taskToken || '';
-        // Apply the same replacement for '+' with space for consistency
-        const storedToken = decodeURIComponent(rawStoredTokenFromDb.replace(/\+/g, ' ')).trim();
-        // --- END essential change ---
+        taskTokenFromDbForSfn = rawStoredTokenFromDb.trim();
 
-        // --- START TEMPORARY DEBUG LOGS FOR TOKEN COMPARISON ---
-        // These logs are crucial for diagnosing the 'Token mismatch' warning
-        // REMOVE THESE AFTER YOU'VE FIXED THE ISSUE
-        console.log(`DEBUG: Comparing provided token (from URL): '${taskToken}' (length: ${taskToken.length})`);
-        console.log(`DEBUG: Comparing stored token (from DB):   '${storedToken}' (length: ${storedToken.length})`);
+        console.log(`DEBUG: Comparing provided token (from URL, decoded): '${tokenFromUrl}' (length: ${tokenFromUrl.length})`);
+        console.log(`DEBUG: Comparing stored token (from DB, raw):        '${taskTokenFromDbForSfn}' (length: ${taskTokenFromDbForSfn.length})`);
 
-        if (storedToken !== taskToken) { // Only log differences if they don't match
-            for (let i = 0; i < Math.max(taskToken.length, storedToken.length); i++) {
-                if (taskToken[i] !== storedToken[i]) {
+        if (taskTokenFromDbForSfn !== tokenFromUrl) {
+            console.warn(`WARN: Token mismatch for request ${requestId}. This might indicate a stale link or tampered token.`);
+            for (let i = 0; i < Math.max(tokenFromUrl.length, taskTokenFromDbForSfn.length); i++) {
+                if (tokenFromUrl[i] !== taskTokenFromDbForSfn[i]) {
                     console.log(`DEBUG: Difference found at index ${i}:`);
-                    console.log(`  Provided char: '${taskToken[i] || 'N/A'}' (CharCode: ${taskToken.charCodeAt(i) || 'N/A'})`);
-                    console.log(`  Stored char:   '${storedToken[i] || 'N/A'}' (CharCode: ${storedToken.charCodeAt(i) || 'N/A'})`);
-                    // Log a substring to see context around the difference
-                    const contextLength = 10; // Number of chars before/after diff to show
-                    console.log(`  Provided context: ${taskToken.substring(Math.max(0, i - contextLength), Math.min(taskToken.length, i + contextLength))}`);
-                    console.log(`  Stored context:   ${storedToken.substring(Math.max(0, i - contextLength), Math.min(storedToken.length, i + contextLength))}`);
-                    break; // Stop after first difference found to avoid excessive logs
+                    console.log(`   Provided char: '${tokenFromUrl[i] || 'N/A'}' (CharCode: ${tokenFromUrl.charCodeAt(i) || 'N/A'})`);
+                    console.log(`   Stored char:   '${taskTokenFromDbForSfn[i] || 'N/A'}' (CharCode: ${taskTokenFromDbForSfn.charCodeAt(i) || 'N/A'})`);
+                    const contextLength = 10;
+                    console.log(`   Provided context: ${tokenFromUrl.substring(Math.max(0, i - contextLength), Math.min(tokenFromUrl.length, i + contextLength))}`);
+                    console.log(`   Stored context:   ${taskTokenFromDbForSfn.substring(Math.max(0, i - contextLength), Math.min(taskTokenFromDbForSfn.length, i + contextLength))}`);
+                    break;
                 }
             }
-        }
-        // --- END TEMPORARY DEBUG LOGS ---
-
-        if (!leaveRequest || leaveRequest.status !== 'Pending' || storedToken !== taskToken) {
-            console.warn(`WARN: Token mismatch or invalid state for request ${requestId}. 
-                          Current status: ${leaveRequest?.status || 'N/A'}, 
-                          Stored token length: ${storedToken.length}, 
-                          Provided token length: ${taskToken.length}. Link might be expired or already used.`);
             return {
                 statusCode: 403,
                 body: JSON.stringify({ message: "Link expired or already used." }),
+            };
+        }
+
+        if (!leaveRequest || leaveRequest.status !== 'Pending') {
+            console.warn(`WARN: Invalid state for request ${requestId}. Current status: ${leaveRequest?.status || 'N/A'}.`);
+            return {
+                statusCode: 403,
+                body: JSON.stringify({ message: "Leave request not found or not pending." }),
             };
         }
 
@@ -122,18 +111,17 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
             ExpressionAttributeValues: {
                 ":newStatus": newStatus,
                 ":updatedAt": new Date().toISOString(),
-                ":nullToken": null // Clear the task token after use
+                ":nullToken": null
             },
         }));
         console.log(`INFO: DynamoDB status for ${requestId} updated successfully.`);
 
-        // 🔁 Step Function response
         try {
             if (action === 'approve') {
                 console.log(`INFO: Sending SendTaskSuccess command for request ${requestId}.`);
-                console.log(`DEBUG: Final taskToken sent to SFN (Success): '${taskToken}' (length: ${taskToken.length})`);
+                console.log(`DEBUG: Final taskToken sent to SFN (Success): '${taskTokenFromDbForSfn}' (length: ${taskTokenFromDbForSfn.length})`);
                 await sfnClient.send(new SendTaskSuccessCommand({
-                    taskToken,
+                    taskToken: taskTokenFromDbForSfn,
                     output: JSON.stringify({
                         status: newStatus,
                         requestId,
@@ -145,7 +133,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
             } else {
                 console.log(`INFO: Sending SendTaskFailure command for request ${requestId}.`);
                 await sfnClient.send(new SendTaskFailureCommand({
-                    taskToken,
+                    taskToken: taskTokenFromDbForSfn,
                     error: "LeaveRejected",
                     cause: "Leave request was rejected by the approver.",
                 }));
@@ -176,9 +164,9 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
                     <html>
                     <head><title>Leave ${newStatus}</title></head>
                     <body>
-                      <h2>Leave ${newStatus}</h2>
-                      <p>Request ID <strong>${requestId}</strong> has been updated successfully.</p>
-                      <p>You may close this tab.</p>
+                    <h2>Leave ${newStatus}</h2>
+                    <p>Request ID <strong>${requestId}</strong> has been updated successfully.</p>
+                    <p>You may close this tab.</p>
                     </body>
                     </html>`,
             };

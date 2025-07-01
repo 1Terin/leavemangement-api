@@ -71,7 +71,6 @@ export const handler = async (event: any) => {
         }));
 
         console.log("Approval request email sent to:", approverEmail);
-        return { success: true, message: "Approval email sent." };
 
     } else if (actionType === "USER_REJECTION") {
         const { recipientEmail, subject, bodyHtml, bodyText } = event;
