@@ -43,23 +43,7 @@ The solution is built on a serverless architecture using AWS services:
 
 
 ![alt text](architecture-diagram.png)
-        A[Client] -->|HTTP Request| B(API Gateway)
-        B -->|Authorization| C(CustomAuthorizerLambda)
-        C -->|Authorized| B
-        B -->|POST /leaves| D(ApplyLeaveFunction)
-        D --> E[DynamoDB: LeaveRequestsTable]
-        D --> F[Step Functions: LeaveApprovalStateMachine]
-        F --> G(SendNotificationFunction)
-        G --> H[AWS SES]
-        H --> I[Approver's Email]
-        I --> J[Approval/Rejection Link Clicked]
-        J --> B
-        B -->|GET /leaves/approve or /reject| K(ProcessApprovalFunction)
-        K --> E
-        K --> F
-        F --> L(SendNotificationFunction)
-        L --> H
-        H --> M[Requester's Email]
+
 
 ## 3. Prerequisites
 
