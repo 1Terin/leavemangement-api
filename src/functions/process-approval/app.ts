@@ -131,6 +131,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
         try {
             if (action === 'approve') {
                 console.log(`INFO: Sending SendTaskSuccess command for request ${requestId}.`);
+                console.log(`DEBUG: Final taskToken sent to SFN (Success): '${taskToken}' (length: ${taskToken.length})`);
                 await sfnClient.send(new SendTaskSuccessCommand({
                     taskToken,
                     output: JSON.stringify({

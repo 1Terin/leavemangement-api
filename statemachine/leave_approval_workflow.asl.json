@@ -19,6 +19,7 @@
           "apiGatewayUrl": "${APIGatewayUrl}"
         }
       },
+      "TimeoutSeconds": 86000, 
       "ResultPath": "$.approvalResult",
       "Next": "CheckApprovalResult",
       "Catch": [
