@@ -42,7 +42,7 @@ The solution is built on a serverless architecture using AWS services:
 * **AWS SES (Simple Email Service):** Used by `SendNotificationFunction` for sending emails.
 
 
-
+![alt text](image.png)
         A[Client] -->|HTTP Request| B(API Gateway)
         B -->|Authorization| C(CustomAuthorizerLambda)
         C -->|Authorized| B
