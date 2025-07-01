@@ -213,20 +213,6 @@ YOUR_API_GATEWAY_URL/leaves/approve?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
 YOUR_API_GATEWAY_URL/leaves/reject?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
 ```
 
-🧠 What Happens on Click
-
-
-When a approver clicks the Approve or Reject link:
-
-✅ Verifies the requestId and taskToken
-
-🗃️ Updates the leave request status in DynamoDB
-
-🔄 Notifies the Step Functions workflow:
-
-SendTaskSuccess for approval
-
-SendTaskFailure for rejection
 
 
 ## 🤝 8. Contributing
