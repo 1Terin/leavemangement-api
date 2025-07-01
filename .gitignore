@@ -208,5 +208,6 @@ $RECYCLE.BIN/
 
 # events
 events/
+/response.json
 
 # End of https://www.toptal.com/developers/gitignore/api/osx,node,linux,windows,sam
