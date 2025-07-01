@@ -11,7 +11,7 @@ const sfnClient = new SFNClient({});
 const LEAVE_REQUESTS_TABLE = process.env.LEAVE_REQUESTS_TABLE_NAME;
 
 export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-  console.log("Received request to ProcessApprovalFunction", JSON.stringify(event));
+  console.log(`INFO: Request received for ${event.httpMethod} ${event.path}`);
 
   if (!LEAVE_REQUESTS_TABLE) {
     console.error("Environment variable LEAVE_REQUESTS_TABLE_NAME not set.");
@@ -47,19 +47,26 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   try {
-    console.log("🔍 Fetching leave request:", requestId);
+    console.log(`INFO: Fetching leave request for ID: ${requestId}`);
     const { Item } = await ddbDocClient.send(new GetCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Key: { requestId },
     }));
 
     const leaveRequest = Item as LeaveRequest | undefined;
-    console.log("📦 Retrieved leaveRequest:", leaveRequest);
+    if (leaveRequest) {
+            console.log(`INFO: Retrieved leave request. Status: ${leaveRequest.status}, User: ${leaveRequest.userId}`);
+        } else {
+            console.log(`INFO: No leave request found for ID: ${requestId}`);
+        }
 
     const storedToken = decodeURIComponent(leaveRequest?.taskToken || '');
 
     if (!leaveRequest || leaveRequest.status !== 'Pending' || storedToken !== taskToken) {
-      console.warn("Invalid or expired token:", { storedToken, taskToken });
+      console.warn(`WARN: Token mismatch or invalid state for request ${requestId}. 
+                          Current status: ${leaveRequest?.status || 'N/A'}, 
+                          Stored token length: ${storedToken.length}, 
+                          Provided token length: ${taskToken.length}`);
       return {
         statusCode: 403,
         body: JSON.stringify({ message: "Link expired or already used." }),
@@ -68,7 +75,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
 
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
 
-    console.log(`🔄 Updating status to ${newStatus}`);
+    console.log(`INFO: Updating leave request ${requestId} status to "${newStatus}" in DynamoDB.`);
     await ddbDocClient.send(new UpdateCommand({
       TableName: LEAVE_REQUESTS_TABLE,
       Key: { requestId },
@@ -82,7 +89,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
         ":nullToken": null
       },
     }));
-    console.log("✅ DynamoDB status updated.");
+    console.log(`INFO: DynamoDB status for ${requestId} updated successfully.`);
 
     // 🔁 Step Function response
     try {
@@ -99,15 +106,16 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
           }),
         }));
       } else {
-        console.log("❌ Sending SendTaskFailure");
+        console.log(`INFO: Sending SendTaskFailure for request ${requestId}.`);
         await sfnClient.send(new SendTaskFailureCommand({
           taskToken,
           error: "LeaveRejected",
           cause: "Leave request was rejected by the approver.",
         }));
       }
+      console.log(`INFO: Step Functions task update for ${requestId} completed.`);
     } catch (stepError) {
-      console.error("🚨 Step Function call failed:", stepError);
+      console.error("ERROR: Step Function call failed:", (stepError as Error).message);
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -121,8 +129,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     const acceptHeader = (event.headers?.['Accept'] || '').toLowerCase();
     const isBrowser = userAgent.includes('mozilla') && !userAgent.includes('postman') && acceptHeader.includes('text/html');
 
-    console.log(`Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}`);
-    console.log("✅ Successfully finished approval flow.");
+    console.log(`INFO: Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}. Successfully finished approval flow for ${requestId}.`);
 
     if (isBrowser) {
       return {
