@@ -188,8 +188,8 @@ Submit a new leave request to the system.
 ```http
 Content-Type: application/json
 Authorization: Bearer <YOUR_JWT_TOKEN>
-📦 Request Body Example
-json
+
+Body:
 {
   "userId": "user123",
   "userEmail": "terinchris2005@gmail.com",
