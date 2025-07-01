@@ -69,8 +69,7 @@ graph TD
 - Node.js 20+
 - AWS CLI and SAM CLI
 - AWS account with SES verified email
-- Docker (optional for local testing)
-- Postman or cURL for testing API
+- Postman for testing API
 - Valid JWT secrets for auth setup
 
 ## 4. Project Structure
@@ -163,14 +162,39 @@ You need a valid JWT token signed with the `JWT_SECRET` used in `CustomAuthorize
 
 You can obtain this token by authenticating against an identity provider or a custom login endpoint.
 
-#### Example JWT Payload
+#### Example JWT Payload For User in js for jwt token
 
 ```json
-{
+const jwt = require('jsonwebtoken');
+
+const payload = {
   "userId": "user123",
   "email": "terinchris2005@gmail.com",
-  "roles": ["user"]
-}
+  "role": "user"
+};
+
+const secret = 'your-super-secret-jwt-key'; 
+
+const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
+
+console.log(token);
+```
+#### Example JWT Payload For User in js for jwt token
+
+```
+const jwt = require('jsonwebtoken');
+
+const payload = {
+  "userId": "approver456",
+  "email": "terinchris2005@gmail.com",
+  "role": "approver"
+};
+
+const secret = 'your-super-secret-jwt-key'; 
+
+const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
+
+console.log(token);
 ```
 
 ## 🔐 JWT Authorization
