@@ -112,38 +112,15 @@ The following environment variables are configured in `template.yaml`:
 
 ### 🔐 CustomAuthorizerLambda
 
-- **`JWT_SECRET`**: `your-super-secret-jwt-key`  
+- **`JWT_SECRET`**: `xyz`  
   This secret is used to sign and verify JWTs for authentication.
-
----
-
-### 📥 ApplyLeaveFunction
-
-- **`LEAVE_REQUESTS_TABLE_NAME`**:  
-  The name of the DynamoDB table for leave requests (e.g., `LeaveRequestsTableProd`).
-
-- **`STEP_FUNCTION_ARN`**:  
-  The ARN of your deployed `LeaveApprovalStateMachine`.
-
----
-
-### ✅ ProcessApprovalFunction
-
-- **`LEAVE_REQUESTS_TABLE_NAME`**:  
-  The name of the DynamoDB table for leave requests.
 
 ---
 
 ### ✉️ SendNotificationFunction
 
-- **`SENDER_EMAIL`**: `"eg.terinchris2005@gmail.com"`  
+- **`SENDER_EMAIL`**: `"eg.xyz@gmail.com"`  
   Make sure this email address is **verified in AWS SES**.
-
-- **`API_GATEWAY_DOMAIN`**:  
-  The domain of your deployed API Gateway (e.g., `xyz.execute-api.ap-south-1.amazonaws.com`).
-
-- **`LEAVE_REQUESTS_TABLE_NAME`**:  
-  The name of the DynamoDB table for leave requests.
 
 ## 📌 7. Usage
 
@@ -161,11 +138,11 @@ const jwt = require('jsonwebtoken');
 
 const payload = {
   "userId": "user123",
-  "email": "terinchris2005@gmail.com",
+  "email": "xyz@gmail.com",
   "role": "user"
 };
 
-const secret = 'your-super-secret-jwt-key'; 
+const secret = 'xyz'; 
 
 const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
 
@@ -178,11 +155,11 @@ const jwt = require('jsonwebtoken');
 
 const payload = {
   "userId": "approver456",
-  "email": "terinchris2005@gmail.com",
+  "email": "xyz@gmail.com",
   "role": "approver"
 };
 
-const secret = 'your-super-secret-jwt-key'; 
+const secret = 'xyz'; 
 
 const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
 
@@ -210,9 +187,9 @@ Authorization: Bearer <YOUR_JWT_TOKEN>
 Body:
 {
   "userId": "user123",
-  "userEmail": "terinchris2005@gmail.com",
+  "userEmail": "xyz@gmail.com",
   "approverId": "approver456",
-  "approverEmail": "terinchris2005@gmail.com",
+  "approverEmail": "xyz@gmail.com",
   "leaveType": "Annual",
   "startDate": "2025-07-01",
   "endDate": "2025-07-05",
