@@ -102,7 +102,7 @@ graph TD
 sam build
 
 # Deploy the stack
-sam deploy --
+sam deploy --guided
 
 ```
 
