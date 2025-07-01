@@ -40,27 +40,26 @@ The solution is built on a serverless architecture using AWS services:
 * **AWS Step Functions (`LeaveApprovalStateMachine`):** Orchestrates the multi-step leave approval workflow, including waiting for human approval.
 * **Amazon DynamoDB (`LeaveRequestsTable`):** A NoSQL database storing leave request details (e.g., `requestId`, `status`, `taskToken`).
 * **AWS SES (Simple Email Service):** Used by `SendNotificationFunction` for sending emails.
-* **AWS X-Ray:** For distributed tracing and performance monitoring.
 
 
 
-    A[Client] -->|HTTP Request| B(API Gateway)
-    B -->|Authorization| C(CustomAuthorizerLambda)
-    C -->|Authorized| B
-    B -->|POST /leaves| D(ApplyLeaveFunction)
-    D --> E[DynamoDB: LeaveRequestsTable]
-    D --> F[Step Functions: LeaveApprovalStateMachine]
-    F --> G(SendNotificationFunction)
-    G --> H[AWS SES]
-    H --> I[Approver's Email]
-    I --> J[Approval/Rejection Link Clicked]
-    J --> B
-    B -->|GET /leaves/approve or /reject| K(ProcessApprovalFunction)
-    K --> E
-    K --> F
-    F --> L(SendNotificationFunction)
-    L --> H
-    H --> M[Requester's Email]
+        A[Client] -->|HTTP Request| B(API Gateway)
+        B -->|Authorization| C(CustomAuthorizerLambda)
+        C -->|Authorized| B
+        B -->|POST /leaves| D(ApplyLeaveFunction)
+        D --> E[DynamoDB: LeaveRequestsTable]
+        D --> F[Step Functions: LeaveApprovalStateMachine]
+        F --> G(SendNotificationFunction)
+        G --> H[AWS SES]
+        H --> I[Approver's Email]
+        I --> J[Approval/Rejection Link Clicked]
+        J --> B
+        B -->|GET /leaves/approve or /reject| K(ProcessApprovalFunction)
+        K --> E
+        K --> F
+        F --> L(SendNotificationFunction)
+        L --> H
+        H --> M[Requester's Email]
 
 ## 3. Prerequisites
 
