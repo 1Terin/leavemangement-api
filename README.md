@@ -75,25 +75,25 @@ graph TD
 
 ## 4. Project Structure
 
-├── swagger.yaml                 # OpenAPI definition for API Gateway
-├── template.yaml                # SAM template for infrastructure definition
-├── package.json
-├── tsconfig.json
-├── src
-│   ├── functions
-│   │   ├── apply-leave          # Lambda for submitting new leave requests
-│   │   │   └── app.ts
-│   │   ├── custom-authorizer    # Lambda for API Gateway custom authorization
-│   │   │   └── app.ts
-│   │   ├── process-approval     # Lambda for processing leave approvals/rejections
-│   │   │   └── app.ts
-│   │   └── send-notification    # Lambda for sending email notifications
-│   │       └── app.ts
-│   └── types                    # Shared TypeScript types (e.g., LeaveRequest)
-│       └── leave.ts
-├── statemachine
-│   └── leave_approval_workflow.asl.json # AWS Step Functions workflow definition
-└── README.md
+    ├── swagger.yaml                 # OpenAPI definition for API Gateway
+    ├── template.yaml                # SAM template for infrastructure definition
+    ├── package.json
+    ├── tsconfig.json
+    ├── src
+    │   ├── functions
+    │   │   ├── apply-leave          # Lambda for submitting new leave requests
+    │   │   │   └── app.ts
+    │   │   ├── custom-authorizer    # Lambda for API Gateway custom authorization
+    │   │   │   └── app.ts
+    │   │   ├── process-approval     # Lambda for processing leave approvals/rejections
+    │   │   │   └── app.ts
+    │   │   └── send-notification    # Lambda for sending email notifications
+    │   │       └── app.ts
+    │   └── types                    # Shared TypeScript types (e.g., LeaveRequest)
+    │       └── leave.ts
+    ├── statemachine
+    │   └── leave_approval_workflow.asl.json # AWS Step Functions workflow definition
+    └── README.md
 
 ## 5. Deployment
 
