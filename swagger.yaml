@@ -34,12 +34,17 @@ paths:
       security:
         - CustomJwtAuthorizer: []
       x-amazon-apigateway-integration:
-        httpMethod: GET
-        uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
+        httpMethod: POST
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations"
         passthroughBehavior: when_no_match
         type: aws_proxy
         credentials: arn:aws:iam::043309342820:role/leavemanagementapi-stack-ProcessApprovalFunctionRole
       parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
         - in: query
           name: requestId
           required: true
@@ -57,12 +62,17 @@ paths:
       security:
         - CustomJwtAuthorizer: []
       x-amazon-apigateway-integration:
-        httpMethod: GET
-        uri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations
+        httpMethod: POST
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-ProcessApprovalFunction/invocations"
         passthroughBehavior: when_no_match
         type: aws_proxy
         credentials: arn:aws:iam::043309342820:role/leavemanagementapi-stack-ProcessApprovalFunctionRole
       parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
         - in: query
           name: requestId
           required: true
@@ -85,4 +95,4 @@ components:
         type: token
         identitySource: method.request.header.Authorization
         authorizerUri: arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:043309342820:function:leavemanagementapi-stack-CustomAuthorizerLambda/invocations
-        authorizerResultTtlInSeconds: 300
+        authorizerResultTtlInSeconds: 30

@@ -3,9 +3,8 @@ const jwt = require('jsonwebtoken');
 const payload = {
   "userId": "user123",
   "email": "terinchris2005@gmail.com",
-  "role": "User"
+  "role": "user"
 };
-
 
 const secret = 'your-super-secret-jwt-key'; 
 

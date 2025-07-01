@@ -33,12 +33,15 @@ export const handler = async (event: TokenAuthorizerEvent, context: Context): Pr
 
     const principalId = claims.userId;
     const effect = 'Allow';
-    const resource = event.methodArn;
+    const resource = event.methodArn.replace(/\/(GET|POST|PUT|DELETE|OPTIONS|HEAD)/, '/*');
 
+
+    
+    const normalizedRole = claims.role?.toLowerCase();
     const authContext = {
       userId: claims.userId,
       email: claims.email,
-      role: claims.role
+      role: normalizedRole
     };
 
     console.log("Attempting to generate policy using generatePolicy function...");

@@ -112,7 +112,7 @@ Resources:
               - logs:PutLogEvents
             Resource: "*"
 
-            Effect: Allow
+          - Effect: Allow
             Action:
               - states:SendTaskSuccess
               - states:SendTaskFailure
@@ -231,7 +231,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt ProcessApprovalFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/*/approve"
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/approve*"
     DependsOn: LeaveManagementApi
 
   ProcessApprovalFunctionRejectApiPermission:
@@ -240,7 +240,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt ProcessApprovalFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/*/reject"
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/prod/GET/leaves/reject*"
     DependsOn: LeaveManagementApi
 
   CustomAuthorizerLambdaPermission:
@@ -249,7 +249,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt CustomAuthorizerLambda.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/authorizers/*"
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${LeaveManagementApi}/*"
     DependsOn: LeaveManagementApi
 
   LeaveApprovalStateMachine:

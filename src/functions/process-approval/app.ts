@@ -22,12 +22,21 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
   }
 
   const requestId = event.queryStringParameters?.requestId;
-  const taskToken = decodeURIComponent(event.queryStringParameters?.token || "");
+  let taskToken = '';
+  try {
+    taskToken = decodeURIComponent(event.queryStringParameters?.token || '');
+  } catch (decodeErr) {
+    console.warn("Malformed token during decode:", decodeErr);
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ message: "Malformed approval token." }),
+    };
+  }
 
   const path = event.path || '';
   let action: "approve" | "reject" | null = null;
-  if (path.endsWith('/approve')) action = "approve";
-  if (path.endsWith('/reject')) action = "reject";
+  if (path.includes('/approve')) action = "approve";
+  if (path.includes('/reject')) action = "reject";
 
   if (!requestId || !taskToken || !action) {
     console.warn("Missing requestId, taskToken, or action:", { requestId, taskToken, action });
@@ -73,35 +82,47 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
         ":nullToken": null
       },
     }));
+    console.log("✅ DynamoDB status updated.");
 
-    console.log("DynamoDB status updated.");
-
-    if (action === 'approve') {
-      console.log("Sending SendTaskSuccess");
-      await sfnClient.send(new SendTaskSuccessCommand({
-        taskToken,
-        output: JSON.stringify({
-          status: newStatus,
-          requestId,
-          userId: leaveRequest.userId,
-          approverId: leaveRequest.approverId,
-          userEmail: leaveRequest.userEmail,
+    // 🔁 Step Function response
+    try {
+      if (action === 'approve') {
+        console.log("✅ Sending SendTaskSuccess");
+        await sfnClient.send(new SendTaskSuccessCommand({
+          taskToken,
+          output: JSON.stringify({
+            status: newStatus,
+            requestId,
+            userId: leaveRequest.userId,
+            approverId: leaveRequest.approverId,
+            userEmail: leaveRequest.userEmail,
+          }),
+        }));
+      } else {
+        console.log("❌ Sending SendTaskFailure");
+        await sfnClient.send(new SendTaskFailureCommand({
+          taskToken,
+          error: "LeaveRejected",
+          cause: "Leave request was rejected by the approver.",
+        }));
+      }
+    } catch (stepError) {
+      console.error("🚨 Step Function call failed:", stepError);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: `Leave ${newStatus}, but workflow update failed.`,
+          error: (stepError as Error).message,
         }),
-      }));
-    } else {
-      console.log("Sending SendTaskFailure");
-      await sfnClient.send(new SendTaskFailureCommand({
-        taskToken,
-        error: "LeaveRejected",
-        cause: "Leave request was rejected by the approver.",
-      }));
+      };
     }
 
     const userAgent = (event.headers?.['User-Agent'] || '').toLowerCase();
-    const acceptHeader = (event.headers?.['Accept'] || '').toLowerCase();  
+    const acceptHeader = (event.headers?.['Accept'] || '').toLowerCase();
     const isBrowser = userAgent.includes('mozilla') && !userAgent.includes('postman') && acceptHeader.includes('text/html');
 
     console.log(`Client type: ${isBrowser ? 'Browser' : 'Postman/curl'}`);
+    console.log("✅ Successfully finished approval flow.");
 
     if (isBrowser) {
       return {
@@ -111,7 +132,7 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
           <html>
             <head><title>Leave ${newStatus}</title></head>
             <body>
-              <h2> Leave ${newStatus}</h2>
+              <h2>Leave ${newStatus}</h2>
               <p>Request ID <strong>${requestId}</strong> has been updated successfully.</p>
               <p>You may close this tab.</p>
             </body>
@@ -127,12 +148,13 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     }
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Unhandled Error:", (error as Error)?.message, (error as Error)?.stack);
     return {
       statusCode: 500,
       body: JSON.stringify({
         message: "Internal server error",
         error: (error as Error).message,
+        stack: (error as Error).stack,
       }),
     };
   }
