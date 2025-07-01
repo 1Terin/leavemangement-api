@@ -209,22 +209,27 @@ Body:
 A JSON object confirming the request, including the generated requestId.
 
 ✅ Approve / ❌ Reject Leave
+
+
 Managers will receive an email with approval and rejection links after a leave request is submitted.
 These links point to GET endpoints hosted on your API Gateway.
 
 ✅ Approve Link Example
-http
-Copy
-Edit
+
+
+```
 YOUR_API_GATEWAY_URL/leaves/approve?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
+```
 
 ❌ Reject Link Example
-http
-Copy
-Edit
+
+```
 YOUR_API_GATEWAY_URL/leaves/reject?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
+```
 
 🧠 What Happens on Click
+
+
 When a manager clicks the Approve or Reject link:
 
 ✅ Verifies the requestId and taskToken
