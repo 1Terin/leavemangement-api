@@ -1,127 +1,283 @@
-# leavemanagementapi-sam
+Leave Management API with Step Functions and TypeScript
 
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
+This project implements a serverless Leave Management API on AWS, leveraging API Gateway, AWS Lambda, DynamoDB, and AWS Step Functions to manage the leave request and approval workflow. It is built using TypeScript and deployed with the AWS Serverless Application Model (SAM).
 
-- hello-world - Code for the application's Lambda function written in TypeScript.
-- events - Invocation events that you can use to invoke the function.
-- hello-world/tests - Unit tests for the application code. 
-- template.yaml - A template that defines the application's AWS resources.
+Table of Contents
+Features
 
-The application uses several AWS resources, including Lambda functions and an API Gateway API. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
+Architecture
 
-If you prefer to use an integrated development environment (IDE) to build and test your application, you can use the AWS Toolkit.  
-The AWS Toolkit is an open source plug-in for popular IDEs that uses the SAM CLI to build and deploy serverless applications on AWS. The AWS Toolkit also adds a simplified step-through debugging experience for Lambda function code. See the following links to get started.
+Prerequisites
 
-* [CLion](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [GoLand](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [IntelliJ](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [WebStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [Rider](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PhpStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PyCharm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [RubyMine](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [DataGrip](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [VS Code](https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/welcome.html)
-* [Visual Studio](https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/welcome.html)
+Project Structure
 
-## Deploy the sample application
+Deployment
 
-The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
+Configuration
 
-To use the SAM CLI, you need the following tools.
+Usage
 
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* Node.js - [Install Node.js 22](https://nodejs.org/en/), including the NPM package management tool.
-* Docker - [Install Docker community edition](https://hub.docker.com/search/?type=edition&offering=community)
+Authentication
 
-To build and deploy your application for the first time, run the following in your shell:
+Apply for Leave
 
-```bash
-sam build
+Approve/Reject Leave
+
+Testing
+
+Outputs
+
+Contributing
+
+License
+
+1. Features
+Leave Request Submission: API endpoint to submit new leave requests.
+
+Custom Authorizer: Secure API endpoints using a custom Lambda authorizer.
+
+Dynamic Workflow: Leverages AWS Step Functions for a robust and stateful approval process.
+
+Email Notifications: Sends email notifications for leave approvals and rejections.
+
+Manager Approval Links: Managers receive approval/rejection links via email that directly interact with the workflow.
+
+DynamoDB Storage: Stores leave request details in a DynamoDB table.
+
+TypeScript & ESBuild: Modern development with TypeScript and optimized bundling with Esbuild.
+
+Tracing: Active AWS X-Ray tracing for better observability.
+
+2. Architecture
+The solution is built on a serverless architecture using AWS services:
+
+AWS API Gateway: Exposes RESTful endpoints for leave submission and approval/rejection actions.
+
+AWS Lambda:
+
+CustomAuthorizerLambda: Handles authentication for API requests.
+
+ApplyLeaveFunction: Processes new leave requests, stores them in DynamoDB, and initiates the Step Functions workflow.
+
+SendNotificationFunction: Sends email notifications (e.g., approval requests to managers, status updates to users) via AWS SES.
+
+ProcessApprovalFunction: Processes approval/rejection actions from the email links, updates DynamoDB, and sends success/failure signals back to Step Functions.
+
+AWS Step Functions (LeaveApprovalStateMachine): Orchestrates the multi-step leave approval workflow, including waiting for human approval.
+
+Amazon DynamoDB (LeaveRequestsTable): A NoSQL database storing leave request details (e.g., requestId, status, taskToken).
+
+AWS SES (Simple Email Service): Used by SendNotificationFunction for sending emails.
+
+AWS X-Ray: For distributed tracing and performance monitoring.
+
+Code snippet
+
+graph TD
+    A[Client] -->|HTTP Request| B(API Gateway)
+    B -->|Authorization| C(CustomAuthorizerLambda)
+    C -->|Authorized| B
+    B -->|POST /leaves| D(ApplyLeaveFunction)
+    D --> E[DynamoDB: LeaveRequestsTable]
+    D --> F[Step Functions: LeaveApprovalStateMachine]
+    F --> G(SendNotificationFunction)
+    G --> H[AWS SES]
+    H --> I[Approver's Email]
+
+    I --> J[Approval/Rejection Link Clicked]
+    J --> B
+    B -->|GET /leaves/approve or /reject| K(ProcessApprovalFunction)
+    K --> E
+    K --> F
+    F --> L(SendNotificationFunction)
+    L --> H
+    H --> M[Requester's Email]
+3. Prerequisites
+To deploy and run this application, you need the following:
+
+AWS CLI installed and configured with appropriate credentials.
+
+AWS SAM CLI installed.
+
+Node.js 20.x or later.
+
+npm (comes with Node.js).
+
+An AWS SES verified identity (email address or domain) configured in the region you are deploying to, as this is used by the SendNotificationFunction.
+
+4. Project Structure
+.
+├── swagger.yaml                 # OpenAPI definition for API Gateway
+├── template.yaml                # SAM template for infrastructure definition
+├── package.json
+├── tsconfig.json
+├── src
+│   ├── functions
+│   │   ├── apply-leave          # Lambda for submitting new leave requests
+│   │   │   └── app.ts
+│   │   ├── custom-authorizer    # Lambda for API Gateway custom authorization
+│   │   │   └── app.ts
+│   │   ├── process-approval     # Lambda for processing leave approvals/rejections
+│   │   │   └── app.ts
+│   │   └── send-notification    # Lambda for sending email notifications
+│   │       └── app.ts
+│   └── types                    # Shared TypeScript types (e.g., LeaveRequest)
+│       └── leave.ts
+├── statemachine
+│   └── leave_approval_workflow.asl.json # AWS Step Functions workflow definition
+└── README.md
+5. Deployment
+Follow these steps to deploy the application to your AWS account:
+
+Clone the repository:
+
+Bash
+
+git clone <your-repo-url>
+cd <your-repo-name>
+Install dependencies:
+
+Bash
+
+npm install
+Build the project using SAM CLI:
+
+Bash
+
+sam build --use-container # Use --use-container if you have native dependencies or issues with local build environment
+Deploy the application:
+During deployment, SAM CLI will guide you through the process. You may be prompted for:
+
+Stack Name: A unique name for your CloudFormation stack (e.g., LeaveManagementStack).
+
+AWS Region: The AWS region to deploy to (e.g., ap-south-1).
+
+LeaveRequestsTableNameParam: You can use the default (LeaveRequestsTableProd) or provide a custom name.
+
+ExternalDependencies: Keep the default (@aws-sdk/*) unless you have specific reasons to change it.
+
+Confirm changes before deploy: Type y to proceed.
+
+Allow SAM CLI to create IAM roles: Type y (required for the Lambda execution roles).
+
+Save arguments to samconfig.toml: Type y (recommended for easier redeployment).
+
+Bash
+
 sam deploy --guided
-```
+Important: After deployment, note the LeaveManagementApiUrl from the SAM CLI output or the CloudFormation stack outputs. This is your API Gateway base URL.
 
-The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:
+6. Configuration
+The following environment variables are configured in template.yaml:
 
-* **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
-* **AWS Region**: The AWS region you want to deploy your app to.
-* **Confirm changes before deploy**: If set to yes, any change sets will be shown to you before execution for manual review. If set to no, the AWS SAM CLI will automatically deploy application changes.
-* **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
-* **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
+Global Variables (for all Lambda functions):
 
-You can find your API Gateway Endpoint URL in the output values displayed after deployment.
+NODE_OPTIONS: --enable-source-maps: Enables source maps for better debugging in CloudWatch.
 
-## Use the SAM CLI to build and test locally
+CustomAuthorizerLambda:
 
-Build your application with the `sam build` command.
+JWT_SECRET: your-super-secret-jwt-key - CHANGE THIS IN PRODUCTION! This secret is used to sign and verify JWTs for authentication.
 
-```bash
-leavemanagementapi-sam$ sam build
-```
+ApplyLeaveFunction:
 
-The SAM CLI installs dependencies defined in `hello-world/package.json`, compiles TypeScript with esbuild, creates a deployment package, and saves it in the `.aws-sam/build` folder.
+LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name for leave requests (e.g., LeaveRequestsTableProd).
 
-Test a single function by invoking it directly with a test event. An event is a JSON document that represents the input that the function receives from the event source. Test events are included in the `events` folder in this project.
+STEP_FUNCTION_ARN: The ARN of your deployed LeaveApprovalStateMachine.
 
-Run functions locally and invoke them with the `sam local invoke` command.
+ProcessApprovalFunction:
 
-```bash
-leavemanagementapi-sam$ sam local invoke HelloWorldFunction --event events/event.json
-```
+LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name.
 
-The SAM CLI can also emulate your application's API. Use the `sam local start-api` to run the API locally on port 3000.
+SendNotificationFunction:
 
-```bash
-leavemanagementapi-sam$ sam local start-api
-leavemanagementapi-sam$ curl http://localhost:3000/
-```
+SENDER_EMAIL: "terinchris2005@gmail.com" - Ensure this email address is verified in AWS SES.
 
-The SAM CLI reads the application template to determine the API's routes and the functions that they invoke. The `Events` property on each function's definition includes the route and method for each path.
+API_GATEWAY_DOMAIN: The domain of your deployed API Gateway.
 
-```yaml
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
-```
+LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name.
 
-## Add a resource to your application
-The application template uses AWS Serverless Application Model (AWS SAM) to define application resources. AWS SAM is an extension of AWS CloudFormation with a simpler syntax for configuring common serverless application resources such as functions, triggers, and APIs. For resources not included in [the SAM specification](https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md), you can use standard [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) resource types.
+7. Usage
+Once deployed, you can interact with the API endpoints. Replace YOUR_API_GATEWAY_URL with the LeaveManagementApiUrl obtained after deployment.
 
-## Fetch, tail, and filter Lambda function logs
+Authentication
+This API uses a custom authorizer. You will need to obtain a JWT token, likely by authenticating against a separate identity provider or an endpoint that issues these tokens. The CustomAuthorizerLambda uses JWT_SECRET for verification.
 
-To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs` lets you fetch logs generated by your deployed Lambda function from the command line. In addition to printing the logs on the terminal, this command has several nifty features to help you quickly find the bug.
+Example JWT payload (replace with your actual user data):
 
-`NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
+JSON
 
-```bash
-leavemanagementapi-sam$ sam logs -n HelloWorldFunction --stack-name leavemanagementapi-sam --tail
-```
+{
+  "userId": "testuser",
+  "email": "testuser@example.com",
+  "roles": ["user"]
+}
+You would then sign this payload with the JWT_SECRET configured in your CustomAuthorizerLambda and pass it in the Authorization header as a Bearer token.
 
-You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
+Apply for Leave
+Submit a new leave request.
 
-## Unit tests
+Endpoint: POST YOUR_API_GATEWAY_URL/leaves
 
-Tests are defined in the `hello-world/tests` folder in this project. Use NPM to install the [Jest test framework](https://jestjs.io/) and run unit tests.
+Headers:
 
-```bash
-leavemanagementapi-sam$ cd hello-world
-hello-world$ npm install
-hello-world$ npm run test
-```
+Content-Type: application/json
 
-## Cleanup
+Authorization: Bearer <YOUR_JWT_TOKEN>
 
-To delete the sample application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
+Request Body Example:
 
-```bash
-sam delete --stack-name leavemanagementapi-sam
-```
+JSON
 
-## Resources
+{
+    "userId": "user123",
+    "userEmail": "user123@example.com",
+    "startDate": "2025-08-01",
+    "endDate": "2025-08-05",
+    "leaveType": "Vacation",
+    "reason": "Family trip",
+    "approverId": "manager456",
+    "approverEmail": "manager456@example.com"
+}
+Response: A JSON object confirming the request, including the requestId.
 
-See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
+Approve/Reject Leave
+Managers will receive an email with approval/rejection links. These are GET requests to your API Gateway.
 
-Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)
+Approve Link Example:
+YOUR_API_GATEWAY_URL/leaves/approve?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
+
+Reject Link Example:
+YOUR_API_GATEWAY_URL/leaves/reject?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
+
+When these links are clicked (or opened in a browser), the ProcessApprovalFunction will:
+
+Verify the requestId and token.
+
+Update the leave request status in DynamoDB.
+
+Notify the Step Functions workflow (SendTaskSuccess or SendTaskFailure).
+
+Return an HTML page (for browsers) or JSON response (for programmatic calls) indicating the status update.
+
+8. Testing
+Local Testing: Use sam local start-api to run your API Gateway locally and test Lambda functions.
+
+Unit/Integration Tests: Implement unit tests for individual Lambda functions and integration tests for the overall workflow.
+
+Trace with X-Ray: Use AWS X-Ray to monitor the performance and identify bottlenecks in your workflow executions.
+
+9. Outputs
+After successful deployment, SAM CLI will output key resource ARNs and URLs:
+
+LeaveManagementApiUrl: The base URL of your API Gateway.
+
+LeaveApprovalStateMachineArn: The ARN of your Step Functions State Machine.
+
+LeaveRequestsTableName: The name of your DynamoDB table.
+
+10. Contributing
+Feel free to contribute to this project by submitting issues or pull requests.
+
+11. License
+This project is licensed under the MIT License. See the LICENSE file for details.
+
