@@ -89,8 +89,10 @@ graph TD
     │   │   │   └── app.ts
     │   │   └── send-notification    # Lambda for sending email notifications
     │   │       └── app.ts
-    │   └── types                    # Shared TypeScript types (e.g., LeaveRequest)
-    │       └── leave.ts
+    │   |__ types                    # Shared TypeScript types (e.g., LeaveRequest)
+    │   |    └── leave.ts
+    |   |__ util
+    |        |__ jwt.ts      
     ├── statemachine
     │   └── leave_approval_workflow.asl.json # AWS Step Functions workflow definition
     └── README.md
@@ -202,6 +204,7 @@ Body:
 }
 ```
 🧾 Response
+
 A JSON object confirming the request, including the generated requestId.
 
 ✅ Approve / ❌ Reject Leave
