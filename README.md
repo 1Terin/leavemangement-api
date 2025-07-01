@@ -156,7 +156,7 @@ You can obtain this token by authenticating against an identity provider or a cu
 
 #### Example JWT Payload For User in js for jwt token
 
-```json
+```
 const jwt = require('jsonwebtoken');
 
 const payload = {
