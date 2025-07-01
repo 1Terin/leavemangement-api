@@ -110,17 +110,10 @@ sam deploy --guided
 
 The following environment variables are configured in `template.yaml`:
 
-### 🌐 Global Variables (for all Lambda functions)
-
-- **`NODE_OPTIONS`**: `--enable-source-maps`  
-  Enables source maps for better debugging in CloudWatch Logs.
-
----
 
 ### 🔐 CustomAuthorizerLambda
 
 - **`JWT_SECRET`**: `your-super-secret-jwt-key`  
-  **⚠️ CHANGE THIS IN PRODUCTION!**  
   This secret is used to sign and verify JWTs for authentication.
 
 ---
@@ -172,8 +165,8 @@ You can obtain this token by authenticating against an identity provider or a cu
 
 ```json
 {
-  "userId": "testuser",
-  "email": "testuser@example.com",
+  "userId": "user123",
+  "email": "terinchris2005@gmail.com",
   "roles": ["user"]
 }
 ```
@@ -189,13 +182,6 @@ Authorization: Bearer <YOUR_JWT_TOKEN>
 
 Submit a new leave request to the system.
 
-### 📤 Endpoint
-
-POST YOUR_API_GATEWAY_URL/leaves
-
-makefile
-Copy
-Edit
 
 ### 🧾 Headers
 
@@ -204,17 +190,15 @@ Content-Type: application/json
 Authorization: Bearer <YOUR_JWT_TOKEN>
 📦 Request Body Example
 json
-Copy
-Edit
 {
   "userId": "user123",
-  "userEmail": "user123@example.com",
-  "startDate": "2025-08-01",
-  "endDate": "2025-08-05",
-  "leaveType": "Vacation",
-  "reason": "Family trip",
-  "approverId": "manager456",
-  "approverEmail": "manager456@example.com"
+  "userEmail": "terinchris2005@gmail.com",
+  "approverId": "approver456",
+  "approverEmail": "terinchris2005@gmail.com",
+  "leaveType": "Annual",
+  "startDate": "2025-07-01",
+  "endDate": "2025-07-05",
+  "reason": "Family vacation"
 }
 ```
 🧾 Response
@@ -249,17 +233,8 @@ SendTaskSuccess for approval
 
 SendTaskFailure for rejection
 
-📄 Returns:
 
-A user-friendly HTML page (if opened in browser), or
-
-A structured JSON response (if accessed via API)
-
-vbnet
-Copy
-Edit
-
-## 🤝 10. Contributing
+## 🤝 8. Contributing
 
 Feel free to contribute to this project by:
 
@@ -272,7 +247,7 @@ Your contributions are welcome and appreciated!
 
 ---
 
-## 📜 11. License
+## 📜 9. License
 
 This project is licensed under the **MIT License**.  
 See the [LICENSE](./LICENSE) file for more details.
