@@ -205,6 +205,7 @@ Body:
 ```
 🧾 Response
 
+
 A JSON object confirming the request, including the generated requestId.
 
 ✅ Approve / ❌ Reject Leave
