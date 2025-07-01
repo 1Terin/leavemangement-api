@@ -147,12 +147,6 @@ The following environment variables are configured in `template.yaml`:
 
 ## 📌 7. Usage
 
-Once deployed, you can interact with the API endpoints.
-
-> Replace `YOUR_API_GATEWAY_URL` with the actual `LeaveManagementApiUrl` output after deployment.
-
----
-
 ### 🔐 Authentication
 
 This API uses a **custom JWT authorizer**.  
