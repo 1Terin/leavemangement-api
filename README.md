@@ -177,11 +177,10 @@ Authorization: Bearer <YOUR_JWT_TOKEN>
 Submit a new leave request to the system.
 
 
-### 🧾 Headers
-
+Headers:
 ```http
 Content-Type: application/json
-Authorization: Bearer <YOUR_JWT_TOKEN>
+Authorization: Bearer <YOUR_JWT_TOKEN>   --user jwt
 
 Body:
 {
@@ -195,8 +194,13 @@ Body:
   "reason": "Family vacation"
 }
 ```
-🧾 Response
+# Approving or rejecting a leave request
 
+Headers:
+```
+Content-Type: application/json
+Authorization: Bearer <YOUR_JWT_TOKEN>   --approver jwt
+```
 
 A JSON object confirming the request, including the generated requestId.
 
