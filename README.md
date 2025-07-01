@@ -45,6 +45,7 @@ The solution is built on a serverless architecture using AWS services:
 
 
 graph TD
+
     A[Client] -->|HTTP Request| B(API Gateway)
     B -->|Authorization| C(CustomAuthorizerLambda)
     C -->|Authorized| B
@@ -54,7 +55,6 @@ graph TD
     F --> G(SendNotificationFunction)
     G --> H[AWS SES]
     H --> I[Approver's Email]
-
     I --> J[Approval/Rejection Link Clicked]
     J --> B
     B -->|GET /leaves/approve or /reject| K(ProcessApprovalFunction)
