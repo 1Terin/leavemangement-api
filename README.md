@@ -194,7 +194,7 @@ Body:
   "reason": "Family vacation"
 }
 ```
-# Approving or rejecting a leave request
+## Approving or rejecting a leave request
 
 Headers:
 ```
