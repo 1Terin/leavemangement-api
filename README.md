@@ -201,16 +201,7 @@ Content-Type: application/json
 Authorization: Bearer <YOUR_JWT_TOKEN>   --approver jwt
 ```
 
-A JSON object confirming the request, including the generated requestId.
-
-✅ Approve / ❌ Reject Leave
-
-
-Approvers will receive an email with approval and rejection links after a leave request is submitted.
-These links point to GET endpoints hosted on your API Gateway.
-
 ✅ Approve Link Example
-
 
 ```
 YOUR_API_GATEWAY_URL/leaves/approve?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
