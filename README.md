@@ -176,9 +176,9 @@ Authorization: Bearer <YOUR_JWT_TOKEN>
 
 Submit a new leave request to the system.
 
-
+```
 Headers:
-```http
+
 Content-Type: application/json
 Authorization: Bearer <YOUR_JWT_TOKEN>   --user jwt
 
@@ -195,9 +195,8 @@ Body:
 }
 ```
 ## Approving or rejecting a leave request
-
-Headers:
 ```
+Headers:
 Content-Type: application/json
 Authorization: Bearer <YOUR_JWT_TOKEN>   --approver jwt
 ```
