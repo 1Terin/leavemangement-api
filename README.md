@@ -22,11 +22,10 @@ A serverless Leave Management System built with AWS SAM, TypeScript, Lambda, API
 * **Leave Request Submission:** API endpoint to submit new leave requests.
 * **Custom Authorizer:** Secure API endpoints using a custom Lambda authorizer.
 * **Dynamic Workflow:** Leverages AWS Step Functions for a robust and stateful approval process.
-* **Email Notifications:** Sends email notifications for leave approvals and rejections.
 * **Manager Approval Links:** Managers receive approval/rejection links via email that directly interact with the workflow.
 * **DynamoDB Storage:** Stores leave request details in a DynamoDB table.
 * **TypeScript & ESBuild:** Modern development with TypeScript and optimized bundling with Esbuild.
-* **Tracing:** Active AWS X-Ray tracing for better observability.
+
 
 ## 2. Architecture
 
@@ -44,7 +43,6 @@ The solution is built on a serverless architecture using AWS services:
 * **AWS X-Ray:** For distributed tracing and performance monitoring.
 
 
-graph TD
 
     A[Client] -->|HTTP Request| B(API Gateway)
     B -->|Authorization| C(CustomAuthorizerLambda)
