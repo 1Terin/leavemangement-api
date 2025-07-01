@@ -136,7 +136,7 @@ The following environment variables are configured in `template.yaml`:
 
 ### ✉️ SendNotificationFunction
 
-- **`SENDER_EMAIL`**: `"terinchris2005@gmail.com"`  
+- **`SENDER_EMAIL`**: `"eg.terinchris2005@gmail.com"`  
   Make sure this email address is **verified in AWS SES**.
 
 - **`API_GATEWAY_DOMAIN`**:  
