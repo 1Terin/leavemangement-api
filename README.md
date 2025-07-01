@@ -1,77 +1,48 @@
-Leave Management API with Step Functions and TypeScript
+# Leave Management API with Step Functions and TypeScript
 
-This project implements a serverless Leave Management API on AWS, leveraging API Gateway, AWS Lambda, DynamoDB, and AWS Step Functions to manage the leave request and approval workflow. It is built using TypeScript and deployed with the AWS Serverless Application Model (SAM).
+A serverless Leave Management System built with AWS SAM, TypeScript, Lambda, API Gateway, DynamoDB, and Step Functions. It supports applying for leaves, sending approval/rejection emails, and handling approvals with JWT-based authorization.
 
-Table of Contents
-Features
+## Table of Contents
 
-Architecture
+1.  [Features](#features)
+2.  [Architecture](#architecture)
+3.  [Prerequisites](#prerequisites)
+4.  [Project Structure](#project-structure)
+5.  [Deployment](#deployment)
+6.  [Configuration](#configuration)
+7.  [Usage](#usage)
+    * [Authentication](#authentication)
+    * [Apply for Leave](#apply-for-leave)
+    * [Approve/Reject Leave](#approve/reject-leave)
+8.  [Contributing](#contributing)
+9.  [License](#license)
 
-Prerequisites
+## 1. Features
 
-Project Structure
+* **Leave Request Submission:** API endpoint to submit new leave requests.
+* **Custom Authorizer:** Secure API endpoints using a custom Lambda authorizer.
+* **Dynamic Workflow:** Leverages AWS Step Functions for a robust and stateful approval process.
+* **Email Notifications:** Sends email notifications for leave approvals and rejections.
+* **Manager Approval Links:** Managers receive approval/rejection links via email that directly interact with the workflow.
+* **DynamoDB Storage:** Stores leave request details in a DynamoDB table.
+* **TypeScript & ESBuild:** Modern development with TypeScript and optimized bundling with Esbuild.
+* **Tracing:** Active AWS X-Ray tracing for better observability.
 
-Deployment
+## 2. Architecture
 
-Configuration
-
-Usage
-
-Authentication
-
-Apply for Leave
-
-Approve/Reject Leave
-
-Testing
-
-Outputs
-
-Contributing
-
-License
-
-1. Features
-Leave Request Submission: API endpoint to submit new leave requests.
-
-Custom Authorizer: Secure API endpoints using a custom Lambda authorizer.
-
-Dynamic Workflow: Leverages AWS Step Functions for a robust and stateful approval process.
-
-Email Notifications: Sends email notifications for leave approvals and rejections.
-
-Manager Approval Links: Managers receive approval/rejection links via email that directly interact with the workflow.
-
-DynamoDB Storage: Stores leave request details in a DynamoDB table.
-
-TypeScript & ESBuild: Modern development with TypeScript and optimized bundling with Esbuild.
-
-Tracing: Active AWS X-Ray tracing for better observability.
-
-2. Architecture
 The solution is built on a serverless architecture using AWS services:
 
-AWS API Gateway: Exposes RESTful endpoints for leave submission and approval/rejection actions.
+* **AWS API Gateway:** Exposes RESTful endpoints for leave submission and approval/rejection actions.
+* **AWS Lambda:**
+    * `CustomAuthorizerLambda`: Handles authentication for API requests.
+    * `ApplyLeaveFunction`: Processes new leave requests, stores them in DynamoDB, and initiates the Step Functions workflow.
+    * `SendNotificationFunction`: Sends email notifications (e.g., approval requests to managers, status updates to users) via AWS SES.
+    * `ProcessApprovalFunction`: Processes approval/rejection actions from the email links, updates DynamoDB, and sends success/failure signals back to Step Functions.
+* **AWS Step Functions (`LeaveApprovalStateMachine`):** Orchestrates the multi-step leave approval workflow, including waiting for human approval.
+* **Amazon DynamoDB (`LeaveRequestsTable`):** A NoSQL database storing leave request details (e.g., `requestId`, `status`, `taskToken`).
+* **AWS SES (Simple Email Service):** Used by `SendNotificationFunction` for sending emails.
+* **AWS X-Ray:** For distributed tracing and performance monitoring.
 
-AWS Lambda:
-
-CustomAuthorizerLambda: Handles authentication for API requests.
-
-ApplyLeaveFunction: Processes new leave requests, stores them in DynamoDB, and initiates the Step Functions workflow.
-
-SendNotificationFunction: Sends email notifications (e.g., approval requests to managers, status updates to users) via AWS SES.
-
-ProcessApprovalFunction: Processes approval/rejection actions from the email links, updates DynamoDB, and sends success/failure signals back to Step Functions.
-
-AWS Step Functions (LeaveApprovalStateMachine): Orchestrates the multi-step leave approval workflow, including waiting for human approval.
-
-Amazon DynamoDB (LeaveRequestsTable): A NoSQL database storing leave request details (e.g., requestId, status, taskToken).
-
-AWS SES (Simple Email Service): Used by SendNotificationFunction for sending emails.
-
-AWS X-Ray: For distributed tracing and performance monitoring.
-
-Code snippet
 
 graph TD
     A[Client] -->|HTTP Request| B(API Gateway)
@@ -92,21 +63,18 @@ graph TD
     F --> L(SendNotificationFunction)
     L --> H
     H --> M[Requester's Email]
-3. Prerequisites
-To deploy and run this application, you need the following:
 
-AWS CLI installed and configured with appropriate credentials.
+## 3. Prerequisites
 
-AWS SAM CLI installed.
+- Node.js 20+
+- AWS CLI and SAM CLI
+- AWS account with SES verified email
+- Docker (optional for local testing)
+- Postman or cURL for testing API
+- Valid JWT secrets for auth setup
 
-Node.js 20.x or later.
+## 4. Project Structure
 
-npm (comes with Node.js).
-
-An AWS SES verified identity (email address or domain) configured in the region you are deploying to, as this is used by the SendNotificationFunction.
-
-4. Project Structure
-.
 ├── swagger.yaml                 # OpenAPI definition for API Gateway
 ├── template.yaml                # SAM template for infrastructure definition
 ├── package.json
@@ -126,158 +94,185 @@ An AWS SES verified identity (email address or domain) configured in the region 
 ├── statemachine
 │   └── leave_approval_workflow.asl.json # AWS Step Functions workflow definition
 └── README.md
-5. Deployment
-Follow these steps to deploy the application to your AWS account:
 
-Clone the repository:
+## 5. Deployment
 
-Bash
+```bash
+# Build the application
+sam build
 
-git clone <your-repo-url>
-cd <your-repo-name>
-Install dependencies:
+# Deploy the stack
+sam deploy --
 
-Bash
+```
 
-npm install
-Build the project using SAM CLI:
+## ⚙️ 6. Configuration
 
-Bash
+The following environment variables are configured in `template.yaml`:
 
-sam build --use-container # Use --use-container if you have native dependencies or issues with local build environment
-Deploy the application:
-During deployment, SAM CLI will guide you through the process. You may be prompted for:
+### 🌐 Global Variables (for all Lambda functions)
 
-Stack Name: A unique name for your CloudFormation stack (e.g., LeaveManagementStack).
+- **`NODE_OPTIONS`**: `--enable-source-maps`  
+  Enables source maps for better debugging in CloudWatch Logs.
 
-AWS Region: The AWS region to deploy to (e.g., ap-south-1).
+---
 
-LeaveRequestsTableNameParam: You can use the default (LeaveRequestsTableProd) or provide a custom name.
+### 🔐 CustomAuthorizerLambda
 
-ExternalDependencies: Keep the default (@aws-sdk/*) unless you have specific reasons to change it.
+- **`JWT_SECRET`**: `your-super-secret-jwt-key`  
+  **⚠️ CHANGE THIS IN PRODUCTION!**  
+  This secret is used to sign and verify JWTs for authentication.
 
-Confirm changes before deploy: Type y to proceed.
+---
 
-Allow SAM CLI to create IAM roles: Type y (required for the Lambda execution roles).
+### 📥 ApplyLeaveFunction
 
-Save arguments to samconfig.toml: Type y (recommended for easier redeployment).
+- **`LEAVE_REQUESTS_TABLE_NAME`**:  
+  The name of the DynamoDB table for leave requests (e.g., `LeaveRequestsTableProd`).
 
-Bash
+- **`STEP_FUNCTION_ARN`**:  
+  The ARN of your deployed `LeaveApprovalStateMachine`.
 
-sam deploy --guided
-Important: After deployment, note the LeaveManagementApiUrl from the SAM CLI output or the CloudFormation stack outputs. This is your API Gateway base URL.
+---
 
-6. Configuration
-The following environment variables are configured in template.yaml:
+### ✅ ProcessApprovalFunction
 
-Global Variables (for all Lambda functions):
+- **`LEAVE_REQUESTS_TABLE_NAME`**:  
+  The name of the DynamoDB table for leave requests.
 
-NODE_OPTIONS: --enable-source-maps: Enables source maps for better debugging in CloudWatch.
+---
 
-CustomAuthorizerLambda:
+### ✉️ SendNotificationFunction
 
-JWT_SECRET: your-super-secret-jwt-key - CHANGE THIS IN PRODUCTION! This secret is used to sign and verify JWTs for authentication.
+- **`SENDER_EMAIL`**: `"terinchris2005@gmail.com"`  
+  Make sure this email address is **verified in AWS SES**.
 
-ApplyLeaveFunction:
+- **`API_GATEWAY_DOMAIN`**:  
+  The domain of your deployed API Gateway (e.g., `xyz.execute-api.ap-south-1.amazonaws.com`).
 
-LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name for leave requests (e.g., LeaveRequestsTableProd).
+- **`LEAVE_REQUESTS_TABLE_NAME`**:  
+  The name of the DynamoDB table for leave requests.
 
-STEP_FUNCTION_ARN: The ARN of your deployed LeaveApprovalStateMachine.
+## 📌 7. Usage
 
-ProcessApprovalFunction:
+Once deployed, you can interact with the API endpoints.
 
-LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name.
+> Replace `YOUR_API_GATEWAY_URL` with the actual `LeaveManagementApiUrl` output after deployment.
 
-SendNotificationFunction:
+---
 
-SENDER_EMAIL: "terinchris2005@gmail.com" - Ensure this email address is verified in AWS SES.
+### 🔐 Authentication
 
-API_GATEWAY_DOMAIN: The domain of your deployed API Gateway.
+This API uses a **custom JWT authorizer**.  
+You need a valid JWT token signed with the `JWT_SECRET` used in `CustomAuthorizerLambda`.
 
-LEAVE_REQUESTS_TABLE_NAME: The DynamoDB table name.
+You can obtain this token by authenticating against an identity provider or a custom login endpoint.
 
-7. Usage
-Once deployed, you can interact with the API endpoints. Replace YOUR_API_GATEWAY_URL with the LeaveManagementApiUrl obtained after deployment.
+#### Example JWT Payload
 
-Authentication
-This API uses a custom authorizer. You will need to obtain a JWT token, likely by authenticating against a separate identity provider or an endpoint that issues these tokens. The CustomAuthorizerLambda uses JWT_SECRET for verification.
-
-Example JWT payload (replace with your actual user data):
-
-JSON
-
+```json
 {
   "userId": "testuser",
   "email": "testuser@example.com",
   "roles": ["user"]
 }
-You would then sign this payload with the JWT_SECRET configured in your CustomAuthorizerLambda and pass it in the Authorization header as a Bearer token.
+```
 
-Apply for Leave
-Submit a new leave request.
+## 🔐 JWT Authorization
 
-Endpoint: POST YOUR_API_GATEWAY_URL/leaves
+Sign the JWT payload using the same `JWT_SECRET` and pass it in the `Authorization` header as a Bearer token:
 
-Headers:
-
-Content-Type: application/json
-
+```http
 Authorization: Bearer <YOUR_JWT_TOKEN>
+```
+## 📝 Apply for Leave
 
-Request Body Example:
+Submit a new leave request to the system.
 
-JSON
+### 📤 Endpoint
 
+POST YOUR_API_GATEWAY_URL/leaves
+
+makefile
+Copy
+Edit
+
+### 🧾 Headers
+
+```http
+Content-Type: application/json
+Authorization: Bearer <YOUR_JWT_TOKEN>
+📦 Request Body Example
+json
+Copy
+Edit
 {
-    "userId": "user123",
-    "userEmail": "user123@example.com",
-    "startDate": "2025-08-01",
-    "endDate": "2025-08-05",
-    "leaveType": "Vacation",
-    "reason": "Family trip",
-    "approverId": "manager456",
-    "approverEmail": "manager456@example.com"
+  "userId": "user123",
+  "userEmail": "user123@example.com",
+  "startDate": "2025-08-01",
+  "endDate": "2025-08-05",
+  "leaveType": "Vacation",
+  "reason": "Family trip",
+  "approverId": "manager456",
+  "approverEmail": "manager456@example.com"
 }
-Response: A JSON object confirming the request, including the requestId.
+```
+🧾 Response
+A JSON object confirming the request, including the generated requestId.
 
-Approve/Reject Leave
-Managers will receive an email with approval/rejection links. These are GET requests to your API Gateway.
+✅ Approve / ❌ Reject Leave
+Managers will receive an email with approval and rejection links after a leave request is submitted.
+These links point to GET endpoints hosted on your API Gateway.
 
-Approve Link Example:
+✅ Approve Link Example
+http
+Copy
+Edit
 YOUR_API_GATEWAY_URL/leaves/approve?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
 
-Reject Link Example:
+❌ Reject Link Example
+http
+Copy
+Edit
 YOUR_API_GATEWAY_URL/leaves/reject?requestId=<REQUEST_ID>&token=<TASK_TOKEN>
 
-When these links are clicked (or opened in a browser), the ProcessApprovalFunction will:
+🧠 What Happens on Click
+When a manager clicks the Approve or Reject link:
 
-Verify the requestId and token.
+✅ Verifies the requestId and taskToken
 
-Update the leave request status in DynamoDB.
+🗃️ Updates the leave request status in DynamoDB
 
-Notify the Step Functions workflow (SendTaskSuccess or SendTaskFailure).
+🔄 Notifies the Step Functions workflow:
 
-Return an HTML page (for browsers) or JSON response (for programmatic calls) indicating the status update.
+SendTaskSuccess for approval
 
-8. Testing
-Local Testing: Use sam local start-api to run your API Gateway locally and test Lambda functions.
+SendTaskFailure for rejection
 
-Unit/Integration Tests: Implement unit tests for individual Lambda functions and integration tests for the overall workflow.
+📄 Returns:
 
-Trace with X-Ray: Use AWS X-Ray to monitor the performance and identify bottlenecks in your workflow executions.
+A user-friendly HTML page (if opened in browser), or
 
-9. Outputs
-After successful deployment, SAM CLI will output key resource ARNs and URLs:
+A structured JSON response (if accessed via API)
 
-LeaveManagementApiUrl: The base URL of your API Gateway.
+vbnet
+Copy
+Edit
 
-LeaveApprovalStateMachineArn: The ARN of your Step Functions State Machine.
+## 🤝 10. Contributing
 
-LeaveRequestsTableName: The name of your DynamoDB table.
+Feel free to contribute to this project by:
 
-10. Contributing
-Feel free to contribute to this project by submitting issues or pull requests.
+- Submitting issues for bugs or feature requests
+- Forking the repository
+- Creating a new branch
+- Opening a pull request
 
-11. License
-This project is licensed under the MIT License. See the LICENSE file for details.
+Your contributions are welcome and appreciated!
 
+---
+
+## 📜 11. License
+
+This project is licensed under the **MIT License**.  
+See the [LICENSE](./LICENSE) file for more details.
