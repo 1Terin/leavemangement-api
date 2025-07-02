@@ -44,7 +44,6 @@ The solution is built on a serverless architecture using AWS services:
 
 ![alt text](architecture-diagram.png)
 
-
 ## 3. Prerequisites
 
 - Node.js 20+
